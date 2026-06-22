@@ -2,6 +2,14 @@
 import pandas as pd
 from retrieve import retrieve_docs
 from retrieve import llm
+from dotenv import load_dotenv #! importing load_dotenv to load environment variables from .env file
+import os #! importing os to access environment variables
+
+
+load_dotenv() #! loading environment variables from .env file
+print("Tracing:", os.getenv("LANGSMITH_TRACING"))
+print("Project:", os.getenv("LANGSMITH_PROJECT"))
+
 
 df = pd.read_csv("evaluation/eval_dataset.csv")
 

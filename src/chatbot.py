@@ -1,6 +1,9 @@
 from retrieve import retrieve_docs
 from retrieve import llm
+import os
+from dotenv import load_dotenv #! importing load_dotenv to load environment variables from .env file
 
+load_dotenv() #! loading environment variables from .env file
 while True:
     question = input("\n How can i help you?") # taking user query as input
 

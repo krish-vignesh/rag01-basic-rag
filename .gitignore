@@ -20,3 +20,6 @@ data/*.pdf
 # OS files
 .DS_Store
 Thumbs.db
+
+# Evaluation outputs
+evaluation/eval_results.csv
