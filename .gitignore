@@ -1,0 +1,22 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+
+# Environment files
+.env
+
+# Chroma vector database
+vector_store/
+
+# PDF documents
+data/*.pdf
+
+# VS Code settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
