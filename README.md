@@ -23,17 +23,20 @@ This project demonstrates the complete RAG pipeline from document ingestion to a
 
 ### 📄 Document Processing
 - PDF Ingestion
-- Text Chunking
-- Vector Embeddings
+- Recursive Text Chunking
+- HuggingFace Embeddings
 - Chroma Vector Store
 
 ### 🔎 Retrieval
-- Semantic Search
+- Semantic Vector Search
 - MMR Retrieval Strategy
-- Context Retrieval
+- Cross-Encoder Re-Ranking
+- Top-K Candidate Retrieval (20)
+- Top-5 Context Selection
 
 ### 🤖 Generation
 - Local LLM using Ollama
+- Llama 3.2
 - Context-Aware Question Answering
 - Prompt Engineering
 
@@ -46,13 +49,15 @@ This project demonstrates the complete RAG pipeline from document ingestion to a
 - LangSmith Tracing
 - Retrieval Inspection
 - LLM Call Monitoring
+- Pipeline Debugging
 - Latency Analysis
+
+### 🧪 Experiments
+- Cross-Encoder Model Testing
+- Retrieval + Re-Ranking Pipeline Testing
 
 ---
 
-## 📂 Project Structure
-
-```text
 RAG01_BASIC_RAG/
 │
 ├── data/
@@ -62,9 +67,14 @@ RAG01_BASIC_RAG/
 │   ├── eval_dataset.csv
 │   └── eval_results.csv (ignored)
 │
+├── experiments/
+│   ├── test_pipeline.py
+│   └── test_reranker.py
+│
 ├── src/
 │   ├── ingest.py
 │   ├── retrieve.py
+│   ├── reranker.py
 │   ├── chatbot.py
 │   ├── generate_answers.py
 │   └── run_ragas.py
@@ -79,25 +89,28 @@ RAG01_BASIC_RAG/
 
 ---
 
-## 🔄 RAG Pipeline
+## 🏗️ Current Architecture
 
 ```text
 User Question
       │
       ▼
-Embedding Model
+Retriever (Top 20)
       │
       ▼
-Chroma Vector Search
+Extract Chunk Text
       │
       ▼
-Relevant Chunks Retrieved
+Cross-Encoder Re-Ranker
+      │
+      ▼
+Top 5 Relevant Chunks
       │
       ▼
 Prompt Construction
       │
       ▼
-Llama 3.2 (Ollama)
+Llama 3.2
       │
       ▼
 Final Answer
@@ -148,11 +161,12 @@ python src/chatbot.py
 
 ## 📊 Evaluation Workflow
 
-1. Create evaluation dataset
-2. Generate RAG answers
-3. Compare against ground truth
-4. Run RAGAS metrics
-5. Analyze traces using LangSmith
+1. Create Ground Truth Dataset
+2. Generate RAG Answers
+3. Compare against Ground Truth
+4. Evaluate using RAGAS Metrics
+5. Analyze Retrieval using LangSmith
+6. Improve Retrieval with Cross-Encoder Re-Ranking
 
 ---
 
@@ -160,25 +174,30 @@ python src/chatbot.py
 
 This project helped me understand:
 
-- Vector Databases
-- Embeddings
-- Semantic Search
-- Chunking Strategies
-- Retrieval Techniques
-- RAG Evaluation
-- LangSmith Observability
-- Local LLM Deployment
-
+- 📄 PDF Loading
+- ✂️ Recursive Text Chunking
+- 🤗 HuggingFace Embeddings
+- 🗄️ Chroma Vector Database
+- 🔎 Semantic Search
+- ⚖️ MMR Retrieval
+- 🎯 Cross-Encoder Re-Ranking
+- 🧠 Prompt Construction
+- 🤖 Local LLM Deployment (Ollama)
+- 📊 RAGAS Evaluation
+- 🔍 LangSmith Observability
+- 🧪 AI Retrieval Debugging
 ---
 
 ## 🔮 Future Improvements
 
 - ✅ LangSmith Integration
-- ⏳ Cross Encoder Re-Ranking
+- ✅ Cross-Encoder Re-Ranking
 - ⏳ Hybrid Search (BM25 + Vector Search)
 - ⏳ Parent Document Retriever
 - ⏳ Query Expansion
+- ⏳ Guardrails & Hallucination Detection
 - ⏳ Advanced Evaluation Dashboard
+- ⏳ Agentic RAG
 
 ---
 

@@ -17,12 +17,15 @@ vector_store = Chroma(
 
 retriever = vector_store.as_retriever(
     search_type="mmr",
-    search_kwargs={"k": 4}  # number of relevant documents to retrieve based on user query
+    search_kwargs={"k": 20}  # number of relevant documents to retrieve based on user query
 )  # retriever to retrieve relevant documents from vector store based on user query
 
 def retrieve_docs(question):
     docs = retriever.invoke(question)  # retrieving relevant documents based on user query
     return docs
+
+def extract_chunks(docs):
+    return[d.page_content for d in docs]
 
 
 
