@@ -1,3 +1,12 @@
+"""
+Purpose:
+Test Retriever + Cross-Encoder pipeline without involving the LLM.
+
+Status:
+Completed and kept for future experiments.
+"""
+
+
 from retrieve import retrieve_docs, extract_chunks
 from reranker import rerank 
 

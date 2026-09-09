@@ -1,3 +1,13 @@
+"""
+Purpose:
+Test the Cross-Encoder reranker independently before integrating it into the chatbot.
+
+Status:
+Completed and kept for future experimentation.
+"""
+
+
+
 from sentence_transformers import CrossEncoder
 
 model = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")

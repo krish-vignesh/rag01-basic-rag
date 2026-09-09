@@ -13,7 +13,7 @@ while True:
         break
     docs = retrieve_docs(question) # retrieving relevant documents based on user query
 
-    chunks = extract_chunks(docs) #NOTE: take only the content from the docs not the metadata
+    chunks = extract_chunks(docs) #NOTE:take only the content from the docs not the metadata
 
     top_chunks = rerank(question, chunks) #!Taking the top chunks with the help of rerank function from raranker.py
 

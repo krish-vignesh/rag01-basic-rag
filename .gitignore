@@ -11,6 +11,8 @@ venv/
 # Chroma vector database
 vector_store/
 
+vectorstore
+
 # PDF documents
 data/*.pdf
 
