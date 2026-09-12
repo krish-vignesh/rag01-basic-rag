@@ -1,5 +1,5 @@
 from retrieve import retrieve_docs, extract_chunks
-from retrieve import llm
+from llm import llm
 import os
 from reranker import rerank 
 from dotenv import load_dotenv #! importing load_dotenv to load environment variables from .env file
