@@ -1,7 +1,7 @@
 
 import pandas as pd
 from retrieve import retrieve_docs
-from retrieve import llm
+from llm import llm
 from dotenv import load_dotenv #! importing load_dotenv to load environment variables from .env file
 import os #! importing os to access environment variables
 

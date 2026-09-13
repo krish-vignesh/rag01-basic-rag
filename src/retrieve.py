@@ -1,14 +1,10 @@
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_ollama import ChatOllama
+
 
 embeddings = HuggingFaceEmbeddings(
     model_name = "sentence-transformers/all-miniLM-L6-v2"
 )  #used to convert user query into vector representation
-
-llm = ChatOllama(
-    model = "llama3.2"
-)
 
 vector_store = Chroma(
     persist_directory = "vector_store", #directory where vector store is saved
