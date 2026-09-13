@@ -1,63 +1,338 @@
-# 🚀 RAG01 - Basic RAG System
+# 🚀 RAG01 - Hybrid RAG System
 
-A Retrieval-Augmented Generation (RAG) chatbot built using LangChain, ChromaDB, HuggingFace Embeddings, and Ollama.
+A Retrieval-Augmented Generation (RAG) system built with LangChain, ChromaDB, HuggingFace Embeddings, BM25, Reciprocal Rank Fusion (RRF), Cross-Encoder Re-Ranking, and NVIDIA Nemotron.
 
-This project demonstrates the complete RAG pipeline from document ingestion to answer generation, evaluation, and observability.
+This project is being developed incrementally to understand how a real-world RAG system is designed, evaluated, observed, and progressively hardened for production use.
 
 ---
 
-## 🛠 Tech Stack
+## 🎯 Project Objective
 
+The goal of this project is not simply to build a chatbot.
+
+The objective is to understand the architecture and engineering decisions behind a modern RAG system.
+
+The project currently covers:
+
+- Document ingestion
+- PDF processing
+- Recursive text chunking
+- Dense semantic retrieval
+- Sparse lexical retrieval using BM25
+- Hybrid retrieval using Reciprocal Rank Fusion
+- Cross-Encoder re-ranking
+- Context-aware generation
+- RAG evaluation
+- LangSmith observability
+
+The next phase is to transform the current static RAG pipeline into a dynamic RAG application with API-based document ingestion and replaceable storage backends.
+
+---
+
+## 🏗️ Current Architecture
+
+```text
+                         USER QUESTION
+                              │
+                              ▼
+                    ┌───────────────────┐
+                    │   Query Pipeline  │
+                    └─────────┬─────────┘
+                              │
+                 ┌────────────┴────────────┐
+                 │                         │
+                 ▼                         ▼
+        Dense Vector Search          BM25 Search
+             Top 20                     Top 20
+                 │                         │
+                 └────────────┬────────────┘
+                              │
+                              ▼
+                   Reciprocal Rank Fusion
+                              │
+                              ▼
+                     Hybrid Candidates
+                              │
+                              ▼
+                    Cross-Encoder Reranker
+                              │
+                              ▼
+                           Top 5
+                              │
+                              ▼
+                     Prompt Construction
+                              │
+                              ▼
+                     NVIDIA Nemotron
+                              │
+                              ▼
+                       Final Answer
+```
+
+---
+
+## 🛠️ Tech Stack
+
+### Core Technologies
+
+- 🐍 Python
 - 🦜 LangChain
 - 🗄️ ChromaDB
 - 🤗 HuggingFace Embeddings
-- 🦙 Ollama
-- 🤖 Llama 3.2
+- 🔎 BM25
+- ⚖️ Reciprocal Rank Fusion (RRF)
+- 🎯 Cross-Encoder Re-Ranking
+
+### Embedding Model
+
+`sentence-transformers/all-MiniLM-L6-v2`
+
+### Re-Ranker
+
+`cross-encoder/ms-marco-MiniLM-L-6-v2`
+
+### LLM
+
+NVIDIA hosted inference using:
+
+`nvidia/nemotron-3.5-lightning-30b-a3b`
+
+### Evaluation & Observability
+
 - 📊 RAGAS
 - 🔍 LangSmith
-- 🐍 Python
 
 ---
 
 ## ✨ Features
 
 ### 📄 Document Processing
-- PDF Ingestion
-- Recursive Text Chunking
-- HuggingFace Embeddings
-- Chroma Vector Store
 
-### 🔎 Retrieval
-- Semantic Vector Search
-- MMR Retrieval Strategy
-- Cross-Encoder Re-Ranking
-- Top-K Candidate Retrieval (20)
-- Top-5 Context Selection
+The current system processes PDF documents using:
 
-### 🤖 Generation
-- Local LLM using Ollama
-- Llama 3.2
-- Context-Aware Question Answering
-- Prompt Engineering
+- PDF loading
+- Recursive Character Text Splitting
+- Chunk size of 750 characters
+- Chunk overlap of 150 characters
+- LangChain Document objects
+- Metadata preservation
 
-### 📈 Evaluation
-- Ground Truth Dataset Creation
-- Automated Answer Generation
-- RAGAS Evaluation Pipeline
+Current NovaTech HR Policy Handbook processing:
 
-### 🔍 Observability
-- LangSmith Tracing
-- Retrieval Inspection
-- LLM Call Monitoring
-- Pipeline Debugging
-- Latency Analysis
-
-### 🧪 Experiments
-- Cross-Encoder Model Testing
-- Retrieval + Re-Ranking Pipeline Testing
+```text
+PDF
+ ↓
+Document Loader
+ ↓
+Recursive Character Text Splitter
+ ↓
+41 Chunks
+```
 
 ---
 
+## 🔎 Retrieval
+
+The retrieval system uses two complementary approaches.
+
+### 1. Dense Retrieval
+
+Dense retrieval uses HuggingFace embeddings and ChromaDB.
+
+```text
+Question
+   ↓
+Embedding
+   ↓
+ChromaDB
+   ↓
+Top 20 Documents
+```
+
+Dense retrieval is useful for understanding semantic similarity between the query and document content.
+
+### 2. Sparse Retrieval - BM25
+
+BM25 provides lexical retrieval based on the terms present in the query and documents.
+
+```text
+Question
+   ↓
+Tokenization
+   ↓
+BM25
+   ↓
+Top 20 Documents
+```
+
+BM25 is particularly useful for:
+
+- Exact terminology
+- Policy names
+- Specific keywords
+- Numbers
+- Names
+- Phrase-heavy queries
+
+---
+
+## ⚖️ Hybrid Search with RRF
+
+Dense retrieval and BM25 produce ranked lists using different scoring mechanisms.
+
+Their raw scores therefore should not simply be added together.
+
+Reciprocal Rank Fusion combines the ranked results based on their positions.
+
+```text
+             Dense Top 20
+                  │
+                  │
+                  ▼
+             ┌─────────┐
+             │   RRF   │
+             └────┬────┘
+                  ▲
+                  │
+             BM25 Top 20
+                  │
+                  ▼
+          Hybrid Candidates
+```
+
+The purpose of RRF is to combine:
+
+```text
+Semantic Retrieval
+        +
+Lexical Retrieval
+        ↓
+Hybrid Retrieval
+```
+
+A document appearing in both retrieval results receives contributions from both ranked lists.
+
+---
+
+## 🎯 Cross-Encoder Re-Ranking
+
+The hybrid candidates generated by RRF are passed to a Cross-Encoder.
+
+The Cross-Encoder evaluates the relationship between:
+
+```text
+Question + Candidate Chunk
+```
+
+and produces a relevance score.
+
+The resulting pipeline is:
+
+```text
+Dense Top 20
+      +
+BM25 Top 20
+      ↓
+     RRF
+      ↓
+Hybrid Candidates
+      ↓
+Cross-Encoder
+      ↓
+Top 5
+```
+
+The Cross-Encoder is intentionally placed after the initial retrieval stage because it is more computationally expensive than the first-stage retrieval methods.
+
+---
+
+## 🤖 Generation
+
+The final Top-5 chunks are used as context for the LLM.
+
+```text
+Top 5 Relevant Chunks
+          ↓
+    Context Construction
+          ↓
+         Prompt
+          ↓
+    NVIDIA Nemotron
+          ↓
+      Final Answer
+```
+
+The prompt instructs the model to answer using the retrieved context.
+
+---
+
+## 📊 Evaluation
+
+The project includes a RAG evaluation workflow.
+
+```text
+Ground Truth Dataset
+        ↓
+Generate RAG Answers
+        ↓
+Compare Results
+        ↓
+RAGAS Evaluation
+        ↓
+Analyze Retrieval
+        ↓
+Improve Pipeline
+```
+
+Evaluation is treated as an engineering feedback loop rather than simply checking whether the chatbot produces an answer.
+
+---
+
+## 🔍 Observability
+
+LangSmith is used to inspect and debug the RAG pipeline.
+
+Observability helps investigate:
+
+- Retrieval behavior
+- Retrieved documents
+- Re-ranking
+- LLM calls
+- Pipeline execution
+- Latency
+- Retrieval failures
+- RAG pipeline behavior
+
+The objective is to understand not only:
+
+> "What answer did the system produce?"
+
+but also:
+
+> "Why did the system produce this answer?"
+
+---
+
+## 🧪 Experiments
+
+The project includes experiments around:
+
+- Dense retrieval
+- BM25 retrieval
+- Hybrid retrieval
+- Reciprocal Rank Fusion
+- Cross-Encoder models
+- Retrieval + re-ranking
+- Retrieval quality
+- RAG pipeline behavior
+
+These experiments are used to understand the effect of individual components on the overall RAG pipeline.
+
+---
+
+## 📁 Project Structure
+
+```text
 RAG01_BASIC_RAG/
 │
 ├── data/
@@ -65,16 +340,20 @@ RAG01_BASIC_RAG/
 │
 ├── evaluation/
 │   ├── eval_dataset.csv
-│   └── eval_results.csv (ignored)
+│   └── eval_results.csv
 │
 ├── experiments/
 │   ├── test_pipeline.py
 │   └── test_reranker.py
 │
 ├── src/
+│   ├── document_processor.py
 │   ├── ingest.py
 │   ├── retrieve.py
+│   ├── bm25.py
+│   ├── rrf.py
 │   ├── reranker.py
+│   ├── llm.py
 │   ├── chatbot.py
 │   ├── generate_answers.py
 │   └── run_ragas.py
@@ -87,34 +366,7 @@ RAG01_BASIC_RAG/
 └── README.md
 ```
 
----
-
-## 🏗️ Current Architecture
-
-```text
-User Question
-      │
-      ▼
-Retriever (Top 20)
-      │
-      ▼
-Extract Chunk Text
-      │
-      ▼
-Cross-Encoder Re-Ranker
-      │
-      ▼
-Top 5 Relevant Chunks
-      │
-      ▼
-Prompt Construction
-      │
-      ▼
-Llama 3.2
-      │
-      ▼
-Final Answer
-```
+> The project structure will evolve as the system moves from a static RAG prototype toward a dynamic application architecture.
 
 ---
 
@@ -135,8 +387,16 @@ python -m venv venv
 
 ### 3️⃣ Activate Environment
 
+#### Windows
+
 ```bash
 venv\Scripts\activate
+```
+
+#### Linux / macOS
+
+```bash
+source venv/bin/activate
 ```
 
 ### 4️⃣ Install Dependencies
@@ -145,64 +405,418 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 5️⃣ Ingest Documents
+### 5️⃣ Configure Environment Variables
+
+Create a `.env` file based on:
+
+`.env.example`
+
+Add the required NVIDIA API configuration.
+
+> Never commit API keys or other secrets to GitHub.
+
+### 6️⃣ Ingest Documents
 
 ```bash
 python src/ingest.py
 ```
 
-### 6️⃣ Run Chatbot
+This processes the configured document and creates the vector-store representation.
+
+### 7️⃣ Run the RAG Chatbot
 
 ```bash
 python src/chatbot.py
 ```
 
+The chatbot executes:
+
+```text
+Question
+   ↓
+Dense Retrieval
+   ↓
+BM25 Retrieval
+   ↓
+RRF
+   ↓
+Cross-Encoder
+   ↓
+Top 5 Context
+   ↓
+NVIDIA Nemotron
+   ↓
+Answer
+```
+
 ---
 
-## 📊 Evaluation Workflow
+## 🧪 Example Questions
 
-1. Create Ground Truth Dataset
-2. Generate RAG Answers
-3. Compare against Ground Truth
-4. Evaluate using RAGAS Metrics
-5. Analyze Retrieval using LangSmith
-6. Improve Retrieval with Cross-Encoder Re-Ranking
+The current system can answer questions based on the NovaTech HR Policy Handbook.
+
+Examples:
+
+```text
+How many days of annual leave are employees entitled to?
+```
+
+```text
+What is the maximum number of days of Privilege Leave that can be carried forward?
+```
+
+```text
+What is 12 days leave a year for?
+```
+
+The hybrid retrieval architecture allows the system to handle both semantic and lexical queries.
+
+---
+
+## 🔮 Next Phase — Dynamic RAG Application
+
+The current implementation relies on a statically configured document pipeline.
+
+The next major phase is to make the RAG system dynamic.
+
+Instead of manually placing a PDF inside the `data/` directory, users will eventually be able to upload documents through an API.
+
+Target architecture:
+
+```text
+                    USER
+                     │
+                     ▼
+                  FastAPI
+                     │
+                     ▼
+              Document Upload
+                     │
+                     ▼
+             Storage Abstraction
+                     │
+                     ▼
+              Document Processing
+                     │
+                     ▼
+                  Chunking
+                     │
+              ┌──────┴──────┐
+              ▼             ▼
+         Embeddings        BM25
+              │             │
+              ▼             ▼
+           Chroma       BM25 Index
+```
+
+The query pipeline will remain:
+
+```text
+User Question
+      │
+      ├───────────────┐
+      ▼               ▼
+Dense Retrieval   BM25 Retrieval
+      │               │
+      └───────┬───────┘
+              ▼
+             RRF
+              │
+              ▼
+       Cross-Encoder
+              │
+              ▼
+            Top 5
+              │
+              ▼
+       NVIDIA Nemotron
+              │
+              ▼
+           Answer
+```
+
+---
+
+## 💾 Storage Architecture
+
+The initial implementation will use local storage.
+
+However, the storage layer will be designed behind an abstraction so that object storage can be introduced later without rewriting the application logic.
+
+Planned architecture:
+
+```text
+                 Storage Interface
+                        │
+          ┌─────────────┼─────────────┐
+          │             │             │
+          ▼             ▼             ▼
+    Local Storage     MinIO      Azure Blob
+        NOW          LATER          LATER
+```
+
+Potential future storage backends:
+
+- Local filesystem
+- MinIO
+- Azure Blob Storage
+- Amazon S3
+
+The ingestion service should interact with the storage abstraction rather than directly depending on a specific storage technology.
+
+This allows the implementation to evolve from local storage to MinIO, Azure Blob Storage, or Amazon S3 without redesigning the entire ingestion workflow.
+
+---
+
+## 🆔 Document & Chunk Identity
+
+As the system moves toward multiple documents, stable identifiers will be introduced.
+
+Planned structure:
+
+```text
+Document
+   │
+   ├── document_id
+   ├── metadata
+   │
+   └── chunks
+          │
+          ├── chunk_id
+          ├── page
+          ├── source
+          └── content
+```
+
+Stable identifiers will become important for:
+
+- Multiple documents
+- Document updates
+- Document deletion
+- Retrieval traceability
+- Metadata filtering
+- Index management
+- Future multi-tenant architectures
+
+---
+
+## 🌐 Planned API Architecture
+
+The future API layer is expected to expose operations such as:
+
+```text
+POST   /documents
+POST   /query
+GET    /documents
+DELETE /documents/{document_id}
+```
+
+The exact API contract will be finalized during implementation.
+
+The intended architecture is:
+
+```text
+             API Layer
+                 │
+                 ▼
+        Application Services
+                 │
+        ┌────────┴────────┐
+        ▼                 ▼
+    Ingestion          Query
+        │                 │
+        ▼                 ▼
+   Storage/Index      Retrieval
+                         │
+                         ▼
+                       RRF
+                         │
+                         ▼
+                    Re-Ranking
+                         │
+                         ▼
+                       LLM
+```
+
+---
+
+## 🛡️ Future Production Hardening
+
+Once the dynamic RAG application is functional, the system will progressively be hardened.
+
+### Retrieval
+
+- Retrieval evaluation
+- Metadata filtering
+- Stable chunk identity
+- Retrieval failure handling
+- Retrieval regression testing
+
+### API
+
+- Request validation
+- Error handling
+- Logging
+- Health checks
+- Authentication
+
+### Storage
+
+- Document lifecycle management
+- Object-storage compatibility
+- Versioning
+
+### RAG Reliability
+
+- Hallucination detection
+- Groundedness checks
+- Guardrails
+- Query validation
+- Failure handling
+
+### Evaluation
+
+- Automated evaluation
+- Retrieval metrics
+- Answer quality metrics
+- Regression testing
+- Evaluation dashboards
+
+### Infrastructure
+
+- Docker
+- Configuration management
+- Observability
+- Performance monitoring
+- Scalable deployment
 
 ---
 
 ## 🎯 Learning Outcomes
 
-This project helped me understand:
+Through this project, I am developing practical understanding of:
 
-- 📄 PDF Loading
-- ✂️ Recursive Text Chunking
-- 🤗 HuggingFace Embeddings
-- 🗄️ Chroma Vector Database
-- 🔎 Semantic Search
-- ⚖️ MMR Retrieval
-- 🎯 Cross-Encoder Re-Ranking
-- 🧠 Prompt Construction
-- 🤖 Local LLM Deployment (Ollama)
-- 📊 RAGAS Evaluation
-- 🔍 LangSmith Observability
-- 🧪 AI Retrieval Debugging
+### RAG Engineering
+
+- PDF ingestion
+- Text chunking
+- Embeddings
+- Vector databases
+- Semantic retrieval
+- Sparse retrieval
+- Hybrid retrieval
+- Reciprocal Rank Fusion
+- Cross-Encoder re-ranking
+- Prompt construction
+- Context-grounded generation
+
+### AI Engineering
+
+- RAG pipeline design
+- Modular architecture
+- Retrieval optimization
+- Evaluation-driven development
+- Observability
+- Model integration
+- Retrieval debugging
+- Component trade-offs
+
+### Enterprise AI Architecture
+
+The project is progressively moving toward:
+
+```text
+Dynamic Ingestion
+       ↓
+Storage Abstraction
+       ↓
+Index Management
+       ↓
+Hybrid Retrieval
+       ↓
+Re-Ranking
+       ↓
+Generation
+       ↓
+Evaluation
+       ↓
+Observability
+       ↓
+API
+       ↓
+Production Hardening
+```
+
+The goal is to understand how individual RAG components work together as a maintainable AI system rather than treating RAG as a single framework feature.
+
 ---
 
-## 🔮 Future Improvements
+## 🗺️ Project Roadmap
 
-- ✅ LangSmith Integration
-- ✅ Cross-Encoder Re-Ranking
-- ⏳ Hybrid Search (BM25 + Vector Search)
-- ⏳ Parent Document Retriever
-- ⏳ Query Expansion
-- ⏳ Guardrails & Hallucination Detection
-- ⏳ Advanced Evaluation Dashboard
-- ⏳ Agentic RAG
+```text
+✅ Phase 1 — Basic RAG
+   ├── PDF ingestion
+   ├── Chunking
+   ├── Embeddings
+   ├── Chroma
+   └── LLM generation
+
+✅ Phase 2 — Retrieval Improvement
+   ├── Dense retrieval
+   ├── BM25
+   ├── Hybrid Search
+   ├── RRF
+   └── Cross-Encoder
+
+✅ Phase 3 — Evaluation & Observability
+   ├── Ground Truth Dataset
+   ├── RAGAS
+   └── LangSmith
+
+🚧 Phase 4 — Dynamic RAG Application
+   ├── Storage abstraction
+   ├── Dynamic document ingestion
+   ├── Stable document/chunk IDs
+   ├── Dynamic BM25 indexing
+   ├── Dynamic vector indexing
+   └── FastAPI
+
+⏳ Phase 5 — Production Hardening
+   ├── Error handling
+   ├── Validation
+   ├── Authentication
+   ├── Logging
+   ├── Monitoring
+   ├── Evaluation automation
+   └── Performance optimization
+
+⏳ Phase 6 — Advanced RAG
+   ├── Query expansion
+   ├── Parent Document Retrieval
+   ├── Advanced retrieval strategies
+   ├── Guardrails
+   └── Agentic RAG
+```
 
 ---
 
 ## 👨‍💻 Author
 
-Vignesh Krishna
+**Vignesh Krishna**
 
-MBA Business Analytics | Data Science & AI Enthusiast
+MBA Business Analytics  
+Data Science & AI  
+Aspiring AI Engineer
+
+---
+
+## 📌 Project Philosophy
+
+> Build the fundamentals first.  
+> Understand why each component exists.  
+> Implement it.  
+> Measure it.  
+> Debug it.  
+> Then harden it for production.
+
+This project is intentionally developed incrementally so that every architectural component is understood before adding the next layer.
