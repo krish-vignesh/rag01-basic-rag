@@ -1,6 +1,5 @@
 from retrieve import retrieve_docs, extract_chunks
 from llm import llm
-import os
 from reranker import rerank 
 from dotenv import load_dotenv #! importing load_dotenv to load environment variables from .env file
 from bm25 import retrieve_bm25 #! importing retrieve_bm25 to retrieve relevant documents based on user query using BM25 algorithm
