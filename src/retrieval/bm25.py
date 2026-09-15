@@ -1,15 +1,53 @@
-import numpy as np
+import os
+
+from dotenv import load_dotenv
+from opensearchpy import OpenSearch
+
+from models.chunk import Chunk
 
 
-def retrieve_bm25(question, bm25, chunks, top_k=20):
-    tokenized_query = question.lower().split()
+load_dotenv()
 
-    scores = bm25.get_scores(tokenized_query)
 
-    ranked_indices = np.argsort(scores)[::-1]
+def retrieve_bm25(question: str, top_k: int = 20):
 
-    top_indices = ranked_indices[:top_k]
+    password = os.getenv("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
 
-    top_chunks = [chunks[i] for i in top_indices]
+    client = OpenSearch(
+        hosts=[{"host": "localhost", "port": 9200}],
+        http_auth=("admin", password),
+        use_ssl=True,
+        verify_certs=False,
+    )
 
-    return top_chunks
+    response = client.search(
+        index="rag_chunks",
+        body={
+            "size": top_k,
+            "query": {
+                "match": {
+                    "chunk_text": question
+                }
+            }
+        }
+    )
+
+    chunks = []
+
+    for hit in response["hits"]["hits"]:
+
+        source = hit["_source"]
+
+        chunk = Chunk(
+            chunk_id=source["chunk_id"],
+            document_id=source["document_id"],
+            company_id=source["company_id"],
+            chunk_text=source["chunk_text"],
+            chunk_index=source["chunk_index"],
+            page=source.get("page"),
+            source=source.get("source")
+        )
+
+        chunks.append(chunk)
+
+    return chunks
