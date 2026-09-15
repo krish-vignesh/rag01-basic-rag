@@ -1,68 +1,46 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(
-    0,
-    str(Path(__file__).resolve().parents[1] / "src")
-)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from models.chunk import Chunk
+from retrieval.retrieve import retrieve_docs
+from retrieval.bm25 import retrieve_bm25
+from retrieval.rrf import reciprocal_rank_fusion
 from retrieval.reranker import rerank
 
 
-chunk_1 = Chunk(
-    document_id="DOC-001",
-    company_id="COMPANY-001",
-    chunk_text="Employees receive 20 days of annual leave every year.",
-    chunk_index=0,
-    page=1,
-    source="HR_Policy_Handbook.pdf"
-)
+question = "What is the annual leave policy?"
 
-chunk_2 = Chunk(
-    document_id="DOC-001",
-    company_id="COMPANY-001",
-    chunk_text="Employees can work remotely up to three days per week.",
-    chunk_index=1,
-    page=5,
-    source="HR_Policy_Handbook.pdf"
-)
 
-chunk_3 = Chunk(
-    document_id="DOC-001",
-    company_id="COMPANY-001",
-    chunk_text="Employees receive sick leave according to company policy.",
-    chunk_index=2,
-    page=3,
-    source="HR_Policy_Handbook.pdf"
+dense_chunks = retrieve_docs(question)
+
+bm25_chunks = retrieve_bm25(
+    question,
+    top_k=20
 )
 
 
-chunks = [
-    chunk_2,
-    chunk_3,
-    chunk_1
-]
-
-
-question = "How many days of annual leave do employees receive?"
-
-
-top_chunks = rerank(
-    question=question,
-    chunks=chunks
+rrf_chunks = reciprocal_rank_fusion(
+    dense_chunks,
+    bm25_chunks
 )
 
 
-print("\n===== RERANKED RESULTS =====\n")
+top_chunks = rrf_chunks[:5]
 
-for rank, chunk in enumerate(top_chunks, start=1):
 
-    print(f"Rank: {rank}")
+reranked_chunks = rerank(
+    question,
+    top_chunks
+)
+
+
+print("\nCross-Encoder Results")
+print("-" * 60)
+
+for rank, chunk in enumerate(reranked_chunks, start=1):
+
+    print(f"\nRank: {rank}")
     print(f"Chunk ID: {chunk.chunk_id}")
-    print(f"Document ID: {chunk.document_id}")
-    print(f"Company ID: {chunk.company_id}")
-    print(f"Text: {chunk.chunk_text}")
     print(f"Page: {chunk.page}")
-    print(f"Source: {chunk.source}")
-    print()
+    print(f"Text: {chunk.chunk_text[:300]}")

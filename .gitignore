@@ -25,3 +25,11 @@ Thumbs.db
 
 # Evaluation outputs
 evaluation/eval_results.csv
+
+# OpenSearch local data
+opensearch-data/
+
+# Local document storage
+storage/
+
+test_storage/

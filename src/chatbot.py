@@ -1,43 +1,60 @@
-from retrieve import retrieve_docs, extract_chunks
-from llm import llm
-from reranker import rerank 
-from dotenv import load_dotenv #! importing load_dotenv to load environment variables from .env file
-from bm25 import retrieve_bm25 #! importing retrieve_bm25 to retrieve relevant documents based on user query using BM25 algorithm
-from rrf import reciprocal_rank_fusion #! importing reciprocal_rank_fusion to combine the results from dense and sparse retrieval methods
-
-load_dotenv() #! loading environment variables from .env file
-while True:
-    question = input("\n How can i help you?") # taking user query as input
-
-    if question.lower() in ["exit", "quit", "over", "enough"]:
-        print("Goodbye!")
-        break
-    dense_docs = retrieve_docs(question) # retrieving relevant documents based on user query
-    sparse_docs = retrieve_bm25(question) # retrieving relevant documents based on user query using BM25 algorithm
-    hybrid_docs = reciprocal_rank_fusion(dense_docs, sparse_docs) # combining the results from dense and sparse retrieval methods using reciprocal rank fusion  
-
-    chunks = extract_chunks(hybrid_docs) #NOTE:take only the content from the docs not the metadata
-
-    top_chunks = rerank(question, chunks) #!Taking the top chunks with the help of rerank function from raranker.py
-
-    print(f"retrived {len(hybrid_docs)}documents") # printing number of documents retrieved based on user query
-
-    context = "\n".join(top_chunks)
-    print("\n===== Top 5 Re-ranked Chunks Extracted =====")
-
-    
+from retrieval.retrieve import retrieve_docs
+from retrieval.bm25 import retrieve_bm25
+from retrieval.rrf import reciprocal_rank_fusion
+from retrieval.reranker import rerank
+from generation.llm import llm
 
 
+def ask_question(question: str):
+
+    # 1. Dense retrieval
+    dense_chunks = retrieve_docs(question)
+
+    # 2. Sparse retrieval using OpenSearch BM25
+    bm25_chunks = retrieve_bm25(
+        question,
+        top_k=20
+    )
+
+    # 3. Combine Dense + BM25 rankings
+    rrf_chunks = reciprocal_rank_fusion(
+        dense_chunks,
+        bm25_chunks
+    )
+
+    # 4. Keep only the top 5 candidates for reranking
+    top_chunks = rrf_chunks[:5]
+
+    # 5. Rerank using the Cross-Encoder
+    reranked_chunks = rerank(
+        question,
+        top_chunks
+    )
+
+    # 6. Build context from the final ranked chunks
+    context = "\n\n".join(
+        chunk.chunk_text
+        for chunk in reranked_chunks
+    )
+
+    # 7. Build the final prompt
     prompt = f"""
-answer the question only using the context below.
+Answer the question only using the context below.
 
-context:
+Context:
 {context}
 
-question:
+Question:
 {question}
-"""
-    response = llm.invoke(prompt) # generating response based on user query and retrieved documents
 
-    print('\nbot:')
-    print(response.content)
+Answer:
+"""
+
+    # 8. Send the prompt to Nemotron
+    response = llm.invoke(prompt)
+
+    # 9. Return answer + source information
+    return {
+        "answer": response.content,
+        "sources": reranked_chunks
+    }

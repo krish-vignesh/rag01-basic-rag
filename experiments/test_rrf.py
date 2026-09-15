@@ -1,64 +1,36 @@
 import sys
 from pathlib import Path
 
-from transformers import Chunk
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-
-sys.path.insert(
-    0,
-    str(Path(__file__).resolve().parents[1] / "src")
-)
-
-from models.chunk import Chunk
+from retrieval.retrieve import retrieve_docs
+from retrieval.bm25 import retrieve_bm25
 from retrieval.rrf import reciprocal_rank_fusion
 
 
-chunk_1 = Chunk(
-    document_id="DOC-001",
-    company_id="COMPANY-001",
-    chunk_text="Annual leave policy",
-    chunk_index=0
-)
+question = "What is the annual leave policy?"
 
-chunk_2 = Chunk(
-    document_id="DOC-001",
-    company_id="COMPANY-001",
-    chunk_text="Sick leave policy",
-    chunk_index=1
-)
 
-chunk_3 = Chunk(
-    document_id="DOC-001",
-    company_id="COMPANY-001",
-    chunk_text="Remote work policy",
-    chunk_index=2
+dense_chunks = retrieve_docs(question)
+
+bm25_chunks = retrieve_bm25(
+    question,
+    top_k=20
 )
 
 
-dense_results = [
-    chunk_1,
-    chunk_2,
-    chunk_3
-]
-
-
-sparse_results = [
-    chunk_3,
-    chunk_1,
-    chunk_2
-]
-
-
-hybrid_results = reciprocal_rank_fusion(
-    dense_docs=dense_results,
-    sparse_docs=sparse_results
+rrf_chunks = reciprocal_rank_fusion(
+    dense_chunks,
+    bm25_chunks
 )
 
 
-for rank, chunk in enumerate(hybrid_results, start=1):
+print("\nRRF Results")
+print("-" * 60)
 
-    print(
-        rank,
-        chunk.chunk_id,
-        chunk.chunk_text
-    )
+for rank, chunk in enumerate(rrf_chunks[:10], start=1):
+
+    print(f"\nRank: {rank}")
+    print(f"Chunk ID: {chunk.chunk_id}")
+    print(f"Page: {chunk.page}")
+    print(f"Text: {chunk.chunk_text[:250]}")
