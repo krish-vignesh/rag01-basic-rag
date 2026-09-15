@@ -1,0 +1,27 @@
+{
+  "mappings": {
+    "properties": {
+      "chunk_id": {
+        "type": "keyword"
+      },
+      "document_id": {
+        "type": "keyword"
+      },
+      "company_id": {
+        "type": "keyword"
+      },
+      "chunk_text": {
+        "type": "text"
+      },
+      "chunk_index": {
+        "type": "integer"
+      },
+      "page": {
+        "type": "integer"
+      },
+      "source": {
+        "type": "keyword"
+      }
+    }
+  }
+}

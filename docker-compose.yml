@@ -1,0 +1,47 @@
+services: #To run the OpenSearch and OpenSearch Dashboards containers, you can use the following docker-compose.yml file. This configuration sets up a single-node OpenSearch instance along with its corresponding dashboard interface.
+
+  opensearch:
+    image: opensearchproject/opensearch:3.8.0
+    container_name: rag01-opensearch
+
+    environment:
+      - discovery.type=single-node #Set the discovery type to single-node for a standalone OpenSearch instance.
+      - bootstrap.memory_lock=true #Set bootstrap.memory_lock to true to prevent the JVM from swapping memory to disk.
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m" #Set the Java heap size to 512MB for both minimum and maximum values. Adjust these values based on your system's available memory and workload requirements.
+
+    ports:
+      - "9200:9200" # API port
+      - "9600:9600" # Performance Analyzer port
+
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data # Mount a volume for the OpenSearch data directory.
+
+    ulimits:
+      memlock:
+        soft: -1 #ulimit settings to allow the OpenSearch container to lock memory and prevent it from being swapped out. The soft limit is set to -1, which means unlimited, and the hard limit is also set to -1.
+        hard: -1
+      nofile:
+        soft: 65536 #The nofile ulimit settings specify the maximum number of open file descriptors for the OpenSearch container. The soft limit is set to 65536, which means that the container can have up to 65536 open files at any given time. The
+        hard: 65536
+
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:3.8.0
+    container_name: rag01-opensearch-dashboards
+
+    ports:
+      - "5601:5601"
+
+    environment:
+      - 'OPENSEARCH_HOSTS=["https://opensearch:9200"]' #opensearch-dashboards container is configured to connect to the OpenSearch container using the specified host URL. The URL points to the OpenSearch container's hostname (opensearch) and the API port (9200).
+      - OPENSEARCH_USERNAME=kibanaserver #The OPENSEARCH_USERNAME environment variable is set to kibanaserver, which is the username used to authenticate with the OpenSearch instance. This username should have the necessary permissions to access and manage the OpenSearch data.
+      - OPENSEARCH_PASSWORD=kibanaserver
+      - OPENSEARCH_SSL_VERIFICATIONMODE=none
+
+    depends_on: #Used to specify the dependencies between services in a Docker Compose file. In this case, it indicates that the opensearch-dashboards service depends on the opensearch service. This means that the opensearch service will be started before the opensearch-dashboards service.
+      - opensearch
+
+
+volumes:
+  opensearch-data:
