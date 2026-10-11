@@ -41,7 +41,25 @@ services: #To run the OpenSearch and OpenSearch Dashboards containers, you can u
 
     depends_on: #Used to specify the dependencies between services in a Docker Compose file. In this case, it indicates that the opensearch-dashboards service depends on the opensearch service. This means that the opensearch service will be started before the opensearch-dashboards service.
       - opensearch
+  
+
+  postgres:
+    image: postgres:17
+    container_name: rag01-postgres
+    restart: unless-stopped #The restart policy is set to unless-stopped, which means that the container will automatically restart unless it is explicitly stopped by the user. This ensures that the PostgreSQL container remains running even if it encounters an error or if the Docker daemon is restarted.
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
 
 
 volumes:
   opensearch-data:
+  postgres-data:

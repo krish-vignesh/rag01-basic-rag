@@ -21,3 +21,9 @@ fastapi
 
 #Validation
 pydantic-settings
+
+#Database Drivers
+psycopg[binary]==3.3.6
+
+#Database ORM
+SQLAlchemy==2.0.50
