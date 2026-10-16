@@ -1,26 +1,20 @@
-import uuid
+
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
-from datetime import datetime, timezone
-
 
 class Document(BaseModel):
+    """
+    Application-level representation of a document.
 
-    document_id: str = Field(
-        default_factory=lambda: str(uuid.uuid4())
-    )
+    Pydantic validates the document data, while SQLAlchemy ORM models
+    define how that data is persisted in PostgreSQL.
+    """
 
-    company_id: str
-
+    document_id: UUID = Field(default_factory=uuid4)
+    company_id: UUID
     filename: str
-
     file_type: str
-
-    version: int
-
+    version: int = Field(default=1, ge=1)
     source: str
-
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
