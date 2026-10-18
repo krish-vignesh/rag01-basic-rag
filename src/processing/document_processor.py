@@ -4,7 +4,7 @@ import pypdf
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from models.chunk import Chunk
+from src.models.chunk import Chunk
 
 
 def load_and_split_documents(

@@ -1,10 +1,8 @@
-from models.document import Document
-from storage.storage import LocalStorage
-
-from processing.document_processor import load_and_split_documents
-from indexing.bm25_index import build_bm25_index
-from indexing.chroma import build_chroma_index
-
+from src.models.document import Document
+from src.storage.storage import LocalStorage
+from src.processing.document_processor import load_and_split_documents
+from src.indexing.bm25_index import build_bm25_index
+from src.indexing.chroma import build_chroma_index
 
 def ingest_document(
     source_file: str,

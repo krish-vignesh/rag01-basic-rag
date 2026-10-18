@@ -83,13 +83,15 @@ def test_successful_document_ingestion():
             document=document,
             stream=stream,
             content_type="application/pdf",
+            return_result=True,
         )
 
-        # 4. Verify the returned document.
-        assert result.document_id == document_id
-        assert result.company_id == company_id
-        assert result.file_id == file_id
-        assert result.status == "uploaded"
+        # 4. Verify the ingestion result.
+        assert result.recovered is False
+        assert result.document.document_id == document_id
+        assert result.document.company_id == company_id
+        assert result.document.file_id == file_id
+        assert result.document.status == "uploaded"
 
         # 5. Verify the File and Document records in PostgreSQL.
         with SessionFactory() as session:

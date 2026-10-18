@@ -12,7 +12,7 @@ def build_bm25_index(chunks):
     password = os.getenv("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
 
     client = OpenSearch(
-        hosts=[{"host": "localhost", "port": 9200}],
+        hosts=[{"host": "opensearch", "port": 9200}],
         http_auth=("admin", password),
         use_ssl=True, #use_ssl=True, is required for secure connections, but can be set to False for local development or testing purposes.
         verify_certs=False,

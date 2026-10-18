@@ -1,6 +1,6 @@
 from sentence_transformers import CrossEncoder
 
-from models.chunk import Chunk
+from src.models.chunk import Chunk
 
 
 model = CrossEncoder(

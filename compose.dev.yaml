@@ -1,0 +1,11 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: rag01-backend-dev:0.1.0
+    volumes:
+      - azure-cli-data:/home/appuser/.azure
+
+volumes:
+  azure-cli-data:

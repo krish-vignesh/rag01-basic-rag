@@ -10,9 +10,9 @@ services: #To run the OpenSearch and OpenSearch Dashboards containers, you can u
       - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m" #Set the Java heap size to 512MB for both minimum and maximum values. Adjust these values based on your system's available memory and workload requirements.
 
-    ports:
-      - "9200:9200" # API port
-      - "9600:9600" # Performance Analyzer port
+    expose:
+      - "9200" # API port
+      - "9600" # Performance Analyzer port 
 
     volumes:
       - opensearch-data:/usr/share/opensearch/data # Mount a volume for the OpenSearch data directory.
@@ -58,6 +58,38 @@ services: #To run the OpenSearch and OpenSearch Dashboards containers, you can u
 
     volumes:
       - postgres-data:/var/lib/postgresql/data
+
+  api:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+
+    image: rag01-backend:0.1.1
+    container_name: rag01-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+    expose:
+      - "8000"
+    depends_on:
+      - postgres
+      - opensearch
+
+  nginx:
+    image: nginx:1.28.0
+    container_name: rag01-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+
+  
 
 
 volumes:

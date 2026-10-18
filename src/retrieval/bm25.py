@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from opensearchpy import OpenSearch
 
-from models.chunk import Chunk
+from src.models.chunk import Chunk
 
 
 load_dotenv()
@@ -14,7 +14,7 @@ def retrieve_bm25(question: str, top_k: int = 20):
     password = os.getenv("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
 
     client = OpenSearch(
-        hosts=[{"host": "localhost", "port": 9200}],
+        hosts=[{"host": "opensearch", "port": 9200}],
         http_auth=("admin", password),
         use_ssl=True,
         verify_certs=False,

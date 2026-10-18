@@ -1,10 +1,10 @@
-
 import logging
 import time
 from typing import BinaryIO
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
+from dataclasses import dataclass
 
 from src.config.settings import settings
 from src.database import SessionFactory
@@ -29,6 +29,14 @@ class DuplicateDocumentError(Exception):
 
 class DocumentUploadError(Exception):
     """Raised when uploading a document fails."""
+
+@dataclass(frozen=True)
+class DocumentIngestionResult:
+    """Result of document ingestion, including whether recovery occurred."""
+
+    document: DocumentModel
+    recovered: bool
+
 
 
 class DocumentIngestionService:
@@ -152,11 +160,107 @@ class DocumentIngestionService:
 
             return file_id
 
+    def _recover_failed_document(
+        self,
+        session,
+        existing_document,
+        stream: BinaryIO,
+        file_id: str,
+        content_type: str | None = None,
+    ):
+        """Recover a failed upload while its PostgreSQL row is locked.
+
+        The caller must have selected the existing document with
+        SELECT ... FOR UPDATE inside an active transaction.
+        """
+        if existing_document.status != "failed":
+            raise DuplicateDocumentError(
+                "Only documents with status 'failed' can be recovered."
+            )
+
+        company_id = existing_document.company_id
+        document_id = existing_document.document_id
+        filename = existing_document.filename
+        stored_blob_name = existing_document.blob_name
+
+        expected_blob_name = self.storage.build_blob_name(
+            company_id=str(company_id),
+            document_id=str(document_id),
+            filename=filename,
+        )
+        if stored_blob_name != expected_blob_name:
+            raise DocumentUploadError(
+                "The stored blob path does not match the document identity."
+            )
+
+        try:
+            if self.storage.exists(
+                company_id=str(company_id),
+                document_id=str(document_id),
+                filename=filename,
+            ):
+                with self.storage.download_document(
+                    company_id=str(company_id),
+                    document_id=str(document_id),
+                    filename=filename,
+                ) as blob_stream:
+                    stored_hash = calculate_stream_hash(blob_stream)
+
+                if stored_hash != file_id:
+                    raise DocumentUploadError(
+                        "The existing Azure blob SHA-256 does not match. "
+                        "Recovery was stopped."
+                    )
+
+                logger.info(
+                    "Existing Azure blob verified during recovery. "
+                    "company_id=%s document_id=%s",
+                    company_id,
+                    document_id,
+                )
+            else:
+                stream.seek(0)
+                self.storage.save_document(
+                    stream=stream,
+                    company_id=str(company_id),
+                    document_id=str(document_id),
+                    filename=filename,
+                    content_type=content_type,
+                )
+
+            updated_document = self.document_repository.update_status(
+                session=session,
+                document_id=document_id,
+                status="uploaded",
+            )
+            if updated_document is None:
+                raise RuntimeError(
+                    "Document disappeared during recovery."
+                )
+            return updated_document
+
+        except (DocumentUploadError, DuplicateDocumentError):
+            raise
+        except Exception as exc:
+            logger.exception(
+                "Failed document recovery. company_id=%s "
+                "document_id=%s blob_name=%s",
+                company_id,
+                document_id,
+                stored_blob_name,
+            )
+            raise DocumentUploadError(
+                "The failed document could not be safely recovered."
+            ) from exc
+
     def ingest_document(
         self,
         document: DocumentModel,
         stream: BinaryIO,
         content_type: str | None = None,
+        *,
+        return_result: bool = False,
+        
     ):
         """
         Persist metadata, upload the original file, and update status.
@@ -232,47 +336,67 @@ class DocumentIngestionService:
                         session=session,
                         company_id=company_id,
                         file_id=file_id,
+                        for_update=True,
                     )
                 )
+
+                recovered_document = None
 
                 if existing_document is not None:
-                    logger.warning(
-                        "Document upload rejected: duplicate content. "
-                        "company_id=%s document_id=%s",
-                        company_id,
-                        document_id,
-                    )
-                    raise DuplicateDocumentError(
-                        "This company has already uploaded "
-                        "a document with identical content."
-                    )
+                    existing_status = existing_document.status
 
-                # File identity is global. Identical bytes can share
-                # a File record across different companies.
-                file_record = self.file_repository.get_by_id(
-                    session=session,
-                    file_id=file_id,
-                )
+                    if existing_status == "failed":
+                        recovered_document = self._recover_failed_document(
+                            session=session,
+                            existing_document=existing_document,
+                            stream=stream,
+                            file_id=file_id,
+                            content_type=content_type,
+                        )
+                    elif existing_status == "uploaded":
+                        logger.warning(
+                            "Duplicate upload rejected. company_id=%s "
+                            "document_id=%s",
+                            company_id,
+                            existing_document.document_id,
+                        )
+                        raise DuplicateDocumentError(
+                            "This company has already uploaded "
+                            "a document with identical content."
+                        )
+                    else:
+                        raise DuplicateDocumentError(
+                            "This document already exists with status "
+                            f"'{existing_status}' and cannot be retried."
+                        )
 
-                if file_record is None:
-                    self.file_repository.create(
+                else:
+                    # File identity is global. Identical bytes can share
+                    # a File record across different companies.
+                    file_record = self.file_repository.get_by_id(
                         session=session,
                         file_id=file_id,
                     )
 
-                # Create the company-owned document record.
-                self.document_repository.create(
-                    session=session,
-                    document_id=document_id,
-                    company_id=company_id,
-                    file_id=file_id,
-                    filename=filename,
-                    file_type=document.file_type,
-                    blob_name=blob_name,
-                    version=document.version,
-                    source=document.source,
-                    status="pending",
-                )
+                    if file_record is None:
+                        self.file_repository.create(
+                            session=session,
+                            file_id=file_id,
+                        )
+
+                    # Create the company-owned document record.
+                    self.document_repository.create(
+                        session=session,
+                        document_id=document_id,
+                        company_id=company_id,
+                        file_id=file_id,
+                        filename=filename,
+                        file_type=document.file_type,
+                        blob_name=blob_name,
+                        version=document.version,
+                        source=document.source,
+                        status="pending",
+                    )
 
             # The transaction has committed successfully.
             metadata_duration = (
@@ -286,10 +410,28 @@ class DocumentIngestionService:
                 document_id,
             )
 
+            if recovered_document is not None:
+                logger.info(
+                    "Failed document recovered successfully. "
+                    "document_id=%s status=uploaded",
+                    recovered_document.document_id,
+                )
+
+                if return_result:
+                    return DocumentIngestionResult(
+                        document=recovered_document,
+                        recovered=True,
+                    )
+
+                return recovered_document
+
         except CompanyNotFoundError:
             raise
 
         except DuplicateDocumentError:
+            raise
+
+        except DocumentUploadError:
             raise
 
         except IntegrityError as exc:
@@ -457,5 +599,12 @@ class DocumentIngestionService:
                 "status update failed. The blob may exist while "
                 "the database status remains 'pending'."
             ) from status_error
+
+        
+        if return_result:
+            return DocumentIngestionResult(
+                document=updated_document,
+                recovered=False,
+            )
 
         return updated_document

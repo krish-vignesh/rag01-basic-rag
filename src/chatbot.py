@@ -1,8 +1,8 @@
-from retrieval.retrieve import retrieve_docs
-from retrieval.bm25 import retrieve_bm25
-from retrieval.rrf import reciprocal_rank_fusion
-from retrieval.reranker import rerank
-from generation.llm import llm
+from src.retrieval.retrieve import retrieve_docs
+from src.retrieval.bm25 import retrieve_bm25
+from src.retrieval.rrf import reciprocal_rank_fusion
+from src.retrieval.reranker import rerank
+from src.generation.llm import llm
 
 
 def ask_question(question: str):

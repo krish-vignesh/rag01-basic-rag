@@ -65,16 +65,22 @@ class DocumentRepository:
 
         return document
     
+    
     def get_by_company_and_file(
         self,
         session: Session,
-        company_id: UUID,
+        company_id,
         file_id: str,
+        for_update: bool = False,
     ) -> Document | None:
         statement = select(Document).where(
             Document.company_id == company_id,
             Document.file_id == file_id,
         )
+
+        if for_update:
+            statement = statement.with_for_update()
+
         return session.scalars(statement).one_or_none()
 
 

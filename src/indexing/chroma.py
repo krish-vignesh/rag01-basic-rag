@@ -2,7 +2,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
-from models.chunk import Chunk
+from src.models.chunk import Chunk
 
 
 embeddings = HuggingFaceEmbeddings(

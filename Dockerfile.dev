@@ -1,0 +1,29 @@
+
+FROM rag01-backend:0.1.1
+
+# Temporarily switch to root to install system packages.
+USER root
+
+# Install Azure CLI for local development only.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+        | gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg \
+    && chmod go+r /etc/apt/keyrings/microsoft.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ bookworm main" \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends azure-cli \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Return to the existing non-root application user.
+USER appuser
+
+
+
+
