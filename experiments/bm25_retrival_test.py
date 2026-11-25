@@ -5,13 +5,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from retrieval.bm25 import retrieve_bm25
 
-
 question = "What is the annual leave policy?"
 
-chunks = retrieve_bm25(
-    question,
-    top_k=5
-)
+chunks = retrieve_bm25(question, top_k=5)
 
 print("\nBM25 Results:")
 print("-" * 60)

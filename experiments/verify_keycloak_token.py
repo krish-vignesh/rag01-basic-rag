@@ -1,11 +1,8 @@
-
-
 import sys
 
 import jwt
 from jwt import InvalidTokenError
 from jwt.exceptions import PyJWKClientError
-
 
 ISSUER = "http://localhost:8080/realms/rag01"
 AUDIENCE = "rag01-api"
@@ -70,7 +67,7 @@ def main():
         print(f"\nFAIL: Token verification failed: {exc}")
         sys.exit(1)
 
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         print(f"\nFAIL: Unexpected error: {type(exc).__name__}: {exc}")
         sys.exit(1)
 

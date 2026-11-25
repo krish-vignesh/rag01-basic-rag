@@ -139,6 +139,31 @@ services: #To run the OpenSearch and OpenSearch Dashboards containers, you can u
 
     depends_on:
       - postgres
+
+  test-db-provisioner:
+    image: postgres:17
+    profiles:
+      - provisioning
+    restart: "no"
+
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_TEST_DB: ${POSTGRES_TEST_DB}
+      POSTGRES_TEST_USER: ${POSTGRES_TEST_USER}
+      POSTGRES_TEST_PASSWORD: ${POSTGRES_TEST_PASSWORD}
+
+    volumes:
+      - ./scripts/provision_test_db.sh:/scripts/provision_test_db.sh:ro
+
+    entrypoint:
+      - bash
+      - /scripts/provision_test_db.sh
+
+    depends_on:
+      - postgres
   
 
   mailpit:

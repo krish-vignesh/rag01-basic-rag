@@ -1,27 +1,25 @@
-
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.orm import Document
 
 
 class DocumentRepository:
-    def get_by_id(
+    async def get_by_id(
         self,
-        session: Session,
+        session: AsyncSession,
         document_id: UUID,
     ) -> Document | None:
-        statement = select(Document).where(
-            Document.document_id == document_id
-        )
+        statement = select(Document).where(Document.document_id == document_id)
 
-        return session.scalars(statement).one_or_none()
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()
 
-    def create(
+    async def create(
         self,
-        session: Session,
+        session: AsyncSession,
         document_id: UUID,
         company_id: UUID,
         file_id: str,
@@ -45,31 +43,30 @@ class DocumentRepository:
         )
 
         session.add(document)
-        session.flush()
+        await session.flush()
 
         return document
 
-    def update_status(
+    async def update_status(
         self,
-        session: Session,
+        session: AsyncSession,
         document_id: UUID,
         status: str,
     ) -> Document | None:
-        document = self.get_by_id(session, document_id)
+        document = await self.get_by_id(session, document_id)
 
         if document is None:
             return None
 
         document.status = status
-        session.flush()
+        await session.flush()
 
         return document
-    
-    
-    def get_by_company_and_file(
+
+    async def get_by_company_and_file(
         self,
-        session: Session,
-        company_id,
+        session: AsyncSession,
+        company_id: UUID,
         file_id: str,
         for_update: bool = False,
     ) -> Document | None:
@@ -81,6 +78,5 @@ class DocumentRepository:
         if for_update:
             statement = statement.with_for_update()
 
-        return session.scalars(statement).one_or_none()
-
-
+        result = await session.execute(statement)
+        return result.scalar_one_or_none()

@@ -1,9 +1,8 @@
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
-
 
 # ---------------------------------------------------------
 # Project paths
@@ -24,9 +23,8 @@ if str(SRC_ROOT) not in sys.path:
 # ---------------------------------------------------------
 
 from src.config.settings import settings
-from src.storage.storage import BufferedAzureBlobReader
 from src.processing.document_processor import load_and_split_documents
-
+from src.storage.storage import BufferedAzureBlobReader
 
 # ---------------------------------------------------------
 # Azure Blob connection
@@ -84,7 +82,6 @@ document_id = "azure-reader-test"
 company_id = "test"
 
 try:
-
     chunks = load_and_split_documents(
         file_stream=reader,
         document_id=document_id,
@@ -93,7 +90,6 @@ try:
     )
 
 finally:
-
     reader.close()
 
 
@@ -107,7 +103,6 @@ print(f"Total chunks: {len(chunks)}")
 
 
 if chunks:
-
     first_chunk = chunks[0]
 
     print("\n--- First Chunk ---")

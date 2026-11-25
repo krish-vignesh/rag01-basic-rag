@@ -3,18 +3,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from retrieval.retrieve import retrieve_docs
 from retrieval.bm25 import retrieve_bm25
-
+from retrieval.retrieve import retrieve_docs
 
 question = "What is the annual leave policy?"
 
 dense_chunks = retrieve_docs(question)
 
-bm25_chunks = retrieve_bm25(
-    question,
-    top_k=20
-)
+bm25_chunks = retrieve_bm25(question, top_k=20)
 
 
 dense_ids = [chunk.chunk_id for chunk in dense_chunks]

@@ -21,7 +21,6 @@ def load_and_split_documents(
     documents = []
 
     for page_number, page in enumerate(pdf_reader.pages):
-
         # Extract text from the current PDF page.
         page_text = page.extract_text() or ""
 
@@ -49,7 +48,6 @@ def load_and_split_documents(
     chunks = []
 
     for chunk_index, document in enumerate(split_documents):
-
         chunk = Chunk(
             document_id=document_id,
             company_id=company_id,

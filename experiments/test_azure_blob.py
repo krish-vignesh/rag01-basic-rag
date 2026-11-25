@@ -1,13 +1,10 @@
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 
-
 STORAGE_ACCOUNT_NAME = "hybridragstorage2026"
 CONTAINER_NAME = "documents"
 
-account_url = (
-    f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
-)
+account_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
 
 credential = DefaultAzureCredential()
 
@@ -16,9 +13,7 @@ blob_service_client = BlobServiceClient(
     credential=credential,
 )
 
-container_client = blob_service_client.get_container_client(
-    CONTAINER_NAME
-)
+container_client = blob_service_client.get_container_client(CONTAINER_NAME)
 
 print("Azure authentication successful.")
 print(f"Storage account: {STORAGE_ACCOUNT_NAME}")

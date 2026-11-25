@@ -1,7 +1,5 @@
-from pathlib import Path
-from io import BytesIO
 import sys
-
+from pathlib import Path
 
 # ---------------------------------------------------------
 # Project paths
@@ -23,7 +21,6 @@ if str(SRC_ROOT) not in sys.path:
 
 from src.config.settings import settings
 from src.storage.storage import DocumentStorage
-
 
 # ---------------------------------------------------------
 # Initialize storage

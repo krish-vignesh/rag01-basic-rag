@@ -1,4 +1,3 @@
-
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -33,14 +32,10 @@ class BatchDocumentUploadResult(BaseModel):
 
         if self.outcome == "success":
             if self.document is None:
-                raise ValueError(
-                    "A successful result must include document details."
-                )
+                raise ValueError("A successful result must include document details.")
 
             if self.error_code is not None or self.message is not None:
-                raise ValueError(
-                    "A successful result cannot contain error details."
-                )
+                raise ValueError("A successful result cannot contain error details.")
 
         else:
             if self.document is not None:
@@ -73,16 +68,10 @@ class BatchDocumentUploadResponse(BaseModel):
         """Ensure summary counts match the individual outcomes."""
 
         if self.total_files != len(self.results):
-            raise ValueError(
-                "total_files must match the number of results."
-            )
+            raise ValueError("total_files must match the number of results.")
 
-        actual_successful = sum(
-            result.outcome == "success" for result in self.results
-        )
-        actual_failed = sum(
-            result.outcome == "failure" for result in self.results
-        )
+        actual_successful = sum(result.outcome == "success" for result in self.results)
+        actual_failed = sum(result.outcome == "failure" for result in self.results)
         actual_not_processed = sum(
             result.outcome == "not_processed" for result in self.results
         )
@@ -92,8 +81,6 @@ class BatchDocumentUploadResponse(BaseModel):
             or self.failed_uploads != actual_failed
             or self.not_processed != actual_not_processed
         ):
-            raise ValueError(
-                "Summary counts must match the individual outcomes."
-            )
+            raise ValueError("Summary counts must match the individual outcomes.")
 
         return self

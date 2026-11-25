@@ -1,11 +1,14 @@
+from sqlalchemy import URL
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
-from sqlalchemy import URL, create_engine
-from sqlalchemy.orm import sessionmaker 
 from src.config.settings import settings
 
-
-
-database_url = URL.create(
+database_url: URL = URL.create(
     drivername="postgresql+psycopg",
     username=settings.postgres_user,
     password=settings.postgres_password,
@@ -14,12 +17,13 @@ database_url = URL.create(
     database=settings.postgres_db,
 )
 
-engine = create_engine(
+engine: AsyncEngine = create_async_engine(
     database_url,
     pool_pre_ping=True,
 )
 
-SessionFactory = sessionmaker(
+AsyncSessionFactory: async_sessionmaker[AsyncSession] = async_sessionmaker(
     bind=engine,
+    class_=AsyncSession,
     expire_on_commit=False,
 )

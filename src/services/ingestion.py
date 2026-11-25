@@ -1,20 +1,22 @@
+import asyncio
 import logging
 import time
+from contextlib import suppress
+from dataclasses import dataclass
 from typing import BinaryIO
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
-from dataclasses import dataclass
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings import settings
-from src.database import SessionFactory
+from src.database import AsyncSessionFactory
 from src.models.document import Document as DocumentModel
 from src.repositories.company_repository import CompanyRepository
 from src.repositories.document_repository import DocumentRepository
 from src.repositories.file_repository import FileRepository
 from src.services.file_identity import calculate_stream_hash
 from src.storage.storage import DocumentStorage
-
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +32,13 @@ class DuplicateDocumentError(Exception):
 class DocumentUploadError(Exception):
     """Raised when uploading a document fails."""
 
+
 @dataclass(frozen=True)
 class DocumentIngestionResult:
     """Result of document ingestion, including whether recovery occurred."""
 
     document: DocumentModel
     recovered: bool
-
 
 
 class DocumentIngestionService:
@@ -57,7 +59,7 @@ class DocumentIngestionService:
 
     def __init__(
         self,
-        session_factory=SessionFactory,
+        session_factory=AsyncSessionFactory,
         company_repository=None,
         file_repository=None,
         document_repository=None,
@@ -72,9 +74,7 @@ class DocumentIngestionService:
         )
 
         self.file_repository = (
-            file_repository
-            if file_repository is not None
-            else FileRepository()
+            file_repository if file_repository is not None else FileRepository()
         )
 
         self.document_repository = (
@@ -92,7 +92,33 @@ class DocumentIngestionService:
             )
         )
 
-    def validate_upload(
+    async def _hash_stream_safely(
+        self,
+        stream: BinaryIO,
+    ) -> str:
+        hash_task = asyncio.create_task(
+            asyncio.to_thread(calculate_stream_hash, stream)
+        )
+
+        try:
+            return await asyncio.shield(hash_task)
+        except asyncio.CancelledError:
+            while not hash_task.done():
+                try:
+                    await asyncio.shield(hash_task)
+                except asyncio.CancelledError:
+                    if hash_task.done():
+                        break
+                    continue
+                except Exception:  # noqa: BLE001
+                    break
+
+            with suppress(Exception, asyncio.CancelledError):
+                hash_task.result()
+
+            raise
+
+    async def validate_upload(
         self,
         company_id: UUID,
         stream: BinaryIO,
@@ -104,30 +130,26 @@ class DocumentIngestionService:
         original reading position.
         """
 
-        with self.session_factory() as session:
-            company = self.company_repository.get_by_id(
+        async with self.session_factory() as session:
+            company = await self.company_repository.get_by_id(
                 session=session,
                 company_id=company_id,
             )
 
             if company is None:
                 logger.warning(
-                    "Upload validation rejected: company does not exist. "
-                    "company_id=%s",
+                    "Upload validation rejected: company does not exist. company_id=%s",
                     company_id,
                 )
-                raise CompanyNotFoundError(
-                    f"Company '{company_id}' does not exist."
-                )
+                raise CompanyNotFoundError(f"Company '{company_id}' does not exist.")
 
             hashing_started_at = time.perf_counter()
 
             try:
-                file_id = calculate_stream_hash(stream)
+                file_id = await self._hash_stream_safely(stream)
             except Exception:
                 logger.exception(
-                    "File hashing failed during upload validation. "
-                    "company_id=%s",
+                    "File hashing failed during upload validation. company_id=%s",
                     company_id,
                 )
                 raise
@@ -139,18 +161,15 @@ class DocumentIngestionService:
                 hashing_duration,
             )
 
-            existing_document = (
-                self.document_repository.get_by_company_and_file(
-                    session=session,
-                    company_id=company_id,
-                    file_id=file_id,
-                )
+            existing_document = await self.document_repository.get_by_company_and_file(
+                session=session,
+                company_id=company_id,
+                file_id=file_id,
             )
 
             if existing_document is not None:
                 logger.warning(
-                    "Upload validation rejected duplicate content. "
-                    "company_id=%s",
+                    "Upload validation rejected duplicate content. company_id=%s",
                     company_id,
                 )
                 raise DuplicateDocumentError(
@@ -160,9 +179,9 @@ class DocumentIngestionService:
 
             return file_id
 
-    def _recover_failed_document(
+    async def _recover_failed_document(
         self,
-        session,
+        session: AsyncSession,
         existing_document,
         stream: BinaryIO,
         file_id: str,
@@ -194,17 +213,20 @@ class DocumentIngestionService:
             )
 
         try:
-            if self.storage.exists(
+            if await self.storage.exists(
                 company_id=str(company_id),
                 document_id=str(document_id),
                 filename=filename,
             ):
-                with self.storage.download_document(
+                blob_stream = await self.storage.download_document(
                     company_id=str(company_id),
                     document_id=str(document_id),
                     filename=filename,
-                ) as blob_stream:
-                    stored_hash = calculate_stream_hash(blob_stream)
+                )
+                try:
+                    stored_hash = await self._hash_stream_safely(blob_stream)
+                finally:
+                    blob_stream.close()
 
                 if stored_hash != file_id:
                     raise DocumentUploadError(
@@ -220,7 +242,7 @@ class DocumentIngestionService:
                 )
             else:
                 stream.seek(0)
-                self.storage.save_document(
+                await self.storage.save_document(
                     stream=stream,
                     company_id=str(company_id),
                     document_id=str(document_id),
@@ -228,23 +250,20 @@ class DocumentIngestionService:
                     content_type=content_type,
                 )
 
-            updated_document = self.document_repository.update_status(
+            updated_document = await self.document_repository.update_status(
                 session=session,
                 document_id=document_id,
                 status="uploaded",
             )
             if updated_document is None:
-                raise RuntimeError(
-                    "Document disappeared during recovery."
-                )
+                raise RuntimeError("Document disappeared during recovery.")
             return updated_document
 
         except (DocumentUploadError, DuplicateDocumentError):
             raise
         except Exception as exc:
             logger.exception(
-                "Failed document recovery. company_id=%s "
-                "document_id=%s blob_name=%s",
+                "Failed document recovery. company_id=%s document_id=%s blob_name=%s",
                 company_id,
                 document_id,
                 stored_blob_name,
@@ -253,14 +272,13 @@ class DocumentIngestionService:
                 "The failed document could not be safely recovered."
             ) from exc
 
-    def ingest_document(
+    async def ingest_document(
         self,
         document: DocumentModel,
         stream: BinaryIO,
         content_type: str | None = None,
         *,
         return_result: bool = False,
-        
     ):
         """
         Persist metadata, upload the original file, and update status.
@@ -277,11 +295,10 @@ class DocumentIngestionService:
         hashing_started_at = time.perf_counter()
 
         try:
-            file_id = calculate_stream_hash(stream)
+            file_id = await self._hash_stream_safely(stream)
         except Exception:
             logger.exception(
-                "Document file hashing failed. "
-                "company_id=%s document_id=%s",
+                "Document file hashing failed. company_id=%s document_id=%s",
                 company_id,
                 document_id,
             )
@@ -303,8 +320,7 @@ class DocumentIngestionService:
             )
         except Exception:
             logger.exception(
-                "Failed to build Azure blob name. "
-                "company_id=%s document_id=%s",
+                "Failed to build Azure blob name. company_id=%s document_id=%s",
                 company_id,
                 document_id,
             )
@@ -314,8 +330,8 @@ class DocumentIngestionService:
         metadata_started_at = time.perf_counter()
 
         try:
-            with self.session_factory.begin() as session:
-                company = self.company_repository.get_by_id(
+            async with self.session_factory.begin() as session:
+                company = await self.company_repository.get_by_id(
                     session=session,
                     company_id=company_id,
                 )
@@ -332,7 +348,7 @@ class DocumentIngestionService:
                     )
 
                 existing_document = (
-                    self.document_repository.get_by_company_and_file(
+                    await self.document_repository.get_by_company_and_file(
                         session=session,
                         company_id=company_id,
                         file_id=file_id,
@@ -346,7 +362,7 @@ class DocumentIngestionService:
                     existing_status = existing_document.status
 
                     if existing_status == "failed":
-                        recovered_document = self._recover_failed_document(
+                        recovered_document = await self._recover_failed_document(
                             session=session,
                             existing_document=existing_document,
                             stream=stream,
@@ -355,8 +371,7 @@ class DocumentIngestionService:
                         )
                     elif existing_status == "uploaded":
                         logger.warning(
-                            "Duplicate upload rejected. company_id=%s "
-                            "document_id=%s",
+                            "Duplicate upload rejected. company_id=%s document_id=%s",
                             company_id,
                             existing_document.document_id,
                         )
@@ -373,19 +388,19 @@ class DocumentIngestionService:
                 else:
                     # File identity is global. Identical bytes can share
                     # a File record across different companies.
-                    file_record = self.file_repository.get_by_id(
+                    file_record = await self.file_repository.get_by_id(
                         session=session,
                         file_id=file_id,
                     )
 
                     if file_record is None:
-                        self.file_repository.create(
+                        await self.file_repository.create(
                             session=session,
                             file_id=file_id,
                         )
 
                     # Create the company-owned document record.
-                    self.document_repository.create(
+                    await self.document_repository.create(
                         session=session,
                         document_id=document_id,
                         company_id=company_id,
@@ -399,9 +414,7 @@ class DocumentIngestionService:
                     )
 
             # The transaction has committed successfully.
-            metadata_duration = (
-                time.perf_counter() - metadata_started_at
-            )
+            metadata_duration = time.perf_counter() - metadata_started_at
 
             logger.info(
                 "PostgreSQL metadata transaction completed in "
@@ -438,13 +451,11 @@ class DocumentIngestionService:
             # Handle a concurrent request that inserted a duplicate
             # after our initial duplicate check.
             try:
-                with self.session_factory() as session:
-                    duplicate = (
-                        self.document_repository.get_by_company_and_file(
-                            session=session,
-                            company_id=company_id,
-                            file_id=file_id,
-                        )
+                async with self.session_factory() as session:
+                    duplicate = await self.document_repository.get_by_company_and_file(
+                        session=session,
+                        company_id=company_id,
+                        file_id=file_id,
                     )
             except Exception:
                 logger.exception(
@@ -477,8 +488,7 @@ class DocumentIngestionService:
 
         except Exception:
             logger.exception(
-                "PostgreSQL metadata transaction failed. "
-                "company_id=%s document_id=%s",
+                "PostgreSQL metadata transaction failed. company_id=%s document_id=%s",
                 company_id,
                 document_id,
             )
@@ -490,7 +500,7 @@ class DocumentIngestionService:
         try:
             stream.seek(0)
 
-            self.storage.save_document(
+            await self.storage.save_document(
                 stream=stream,
                 company_id=str(company_id),
                 document_id=str(document_id),
@@ -500,21 +510,18 @@ class DocumentIngestionService:
 
         except Exception as upload_error:
             logger.exception(
-                "Azure Blob upload failed. "
-                "company_id=%s document_id=%s",
+                "Azure Blob upload failed. company_id=%s document_id=%s",
                 company_id,
                 document_id,
             )
 
             # Step 5: Record the failure in a new transaction.
             try:
-                with self.session_factory.begin() as session:
-                    failed_document = (
-                        self.document_repository.update_status(
-                            session=session,
-                            document_id=document_id,
-                            status="failed",
-                        )
+                async with self.session_factory.begin() as session:
+                    failed_document = await self.document_repository.update_status(
+                        session=session,
+                        document_id=document_id,
+                        status="failed",
                     )
 
                     if failed_document is None:
@@ -542,13 +549,10 @@ class DocumentIngestionService:
                 "Blob upload failed. The document status is 'failed'."
             ) from upload_error
 
-        azure_upload_duration = (
-            time.perf_counter() - azure_upload_started_at
-        )
+        azure_upload_duration = time.perf_counter() - azure_upload_started_at
 
         logger.info(
-            "Azure Blob upload completed in %.3f seconds. "
-            "company_id=%s document_id=%s",
+            "Azure Blob upload completed in %.3f seconds. company_id=%s document_id=%s",
             azure_upload_duration,
             company_id,
             document_id,
@@ -558,13 +562,11 @@ class DocumentIngestionService:
         status_update_started_at = time.perf_counter()
 
         try:
-            with self.session_factory.begin() as session:
-                updated_document = (
-                    self.document_repository.update_status(
-                        session=session,
-                        document_id=document_id,
-                        status="uploaded",
-                    )
+            async with self.session_factory.begin() as session:
+                updated_document = await self.document_repository.update_status(
+                    session=session,
+                    document_id=document_id,
+                    status="uploaded",
                 )
 
                 if updated_document is None:
@@ -573,9 +575,7 @@ class DocumentIngestionService:
                         "the Azure upload succeeded."
                     )
 
-            status_update_duration = (
-                time.perf_counter() - status_update_started_at
-            )
+            status_update_duration = time.perf_counter() - status_update_started_at
 
             logger.info(
                 "PostgreSQL status update completed in %.3f seconds. "
@@ -600,7 +600,6 @@ class DocumentIngestionService:
                 "the database status remains 'pending'."
             ) from status_error
 
-        
         if return_result:
             return DocumentIngestionResult(
                 document=updated_document,

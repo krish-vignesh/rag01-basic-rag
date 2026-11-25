@@ -5,7 +5,6 @@ from opensearchpy import OpenSearch
 
 from src.models.chunk import Chunk
 
-
 load_dotenv()
 
 
@@ -22,20 +21,12 @@ def retrieve_bm25(question: str, top_k: int = 20):
 
     response = client.search(
         index="rag_chunks",
-        body={
-            "size": top_k,
-            "query": {
-                "match": {
-                    "chunk_text": question
-                }
-            }
-        }
+        body={"size": top_k, "query": {"match": {"chunk_text": question}}},
     )
 
     chunks = []
 
     for hit in response["hits"]["hits"]:
-
         source = hit["_source"]
 
         chunk = Chunk(
@@ -45,7 +36,7 @@ def retrieve_bm25(question: str, top_k: int = 20):
             chunk_text=source["chunk_text"],
             chunk_index=source["chunk_index"],
             page=source.get("page"),
-            source=source.get("source")
+            source=source.get("source"),
         )
 
         chunks.append(chunk)

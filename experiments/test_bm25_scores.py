@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 from opensearchpy import OpenSearch
 
-
 load_dotenv()
 
 password = os.getenv("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
@@ -19,15 +18,7 @@ client = OpenSearch(
 question = "What is the annual leave policy?"
 
 response = client.search(
-    index="rag_chunks",
-    body={
-        "size": 5,
-        "query": {
-            "match": {
-                "chunk_text": question
-            }
-        }
-    }
+    index="rag_chunks", body={"size": 5, "query": {"match": {"chunk_text": question}}}
 )
 
 

@@ -3,7 +3,6 @@ import os
 from dotenv import load_dotenv
 from opensearchpy import OpenSearch
 
-
 load_dotenv()
 
 password = os.getenv("OPENSEARCH_INITIAL_ADMIN_PASSWORD")
@@ -25,15 +24,9 @@ else:
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
-
-vector_store = Chroma(
-    persist_directory="vector_store",
-    embedding_function=embeddings
-)
+vector_store = Chroma(persist_directory="vector_store", embedding_function=embeddings)
 
 data = vector_store.get()
 
@@ -45,13 +38,10 @@ print("First chunk metadata:", data["metadatas"][0])
 
 from opensearchpy.helpers import bulk
 
-
 actions = []
 
 for chunk_id, document, metadata in zip(
-    data["ids"],
-    data["documents"],
-    data["metadatas"]
+    data["ids"], data["documents"], data["metadatas"]
 ):
     actions.append(
         {

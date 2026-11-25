@@ -3,22 +3,13 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 from src.models.chunk import Chunk
 
-
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 
-vector_store = Chroma(
-    persist_directory="vector_store",
-    embedding_function=embeddings
-)
+vector_store = Chroma(persist_directory="vector_store", embedding_function=embeddings)
 
 
-retriever = vector_store.as_retriever(
-    search_type="mmr",
-    search_kwargs={"k": 20}
-)
+retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 20})
 
 
 def retrieve_docs(question):
@@ -28,7 +19,6 @@ def retrieve_docs(question):
     chunks = []
 
     for doc in docs:
-
         chunk = Chunk(
             chunk_id=doc.metadata["chunk_id"],
             document_id=doc.metadata["document_id"],
@@ -36,13 +26,9 @@ def retrieve_docs(question):
             chunk_text=doc.page_content,
             chunk_index=doc.metadata["chunk_index"],
             page=doc.metadata.get("page"),
-            source=doc.metadata.get("source")
+            source=doc.metadata.get("source"),
         )
 
         chunks.append(chunk)
 
     return chunks
-
-
-
-

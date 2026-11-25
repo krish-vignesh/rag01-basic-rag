@@ -1,11 +1,18 @@
-
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
-from starlette.concurrency import run_in_threadpool
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 
+from src.api.dependencies import get_ingestion_service
 from src.api.validators.documents import (
     validate_file_extension,
     validate_file_size,
@@ -20,10 +27,7 @@ from src.services.ingestion import (
     DuplicateDocumentError,
 )
 
-
 router = APIRouter()
-
-ingestion_service = DocumentIngestionService()
 
 
 @router.post(
@@ -34,6 +38,10 @@ ingestion_service = DocumentIngestionService()
 async def upload_document(
     file: Annotated[UploadFile, File(...)],
     company_id: Annotated[UUID, Form()],
+    ingestion_service: Annotated[
+        DocumentIngestionService,
+        Depends(get_ingestion_service),
+    ],
 ) -> DocumentUploadResponse:
     """
     Upload a supported document for an existing company.
@@ -60,8 +68,7 @@ async def upload_document(
         )
 
         try:
-            uploaded_result = await run_in_threadpool(
-                ingestion_service.ingest_document,
+            uploaded_result = await ingestion_service.ingest_document(
                 document=document,
                 stream=file.file,
                 content_type=file.content_type,
@@ -77,10 +84,7 @@ async def upload_document(
         except DuplicateDocumentError as exc:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "This document has already been uploaded "
-                    "for this company."
-                ),
+                detail=("This document has already been uploaded for this company."),
             ) from exc
 
         except DocumentUploadError as exc:
@@ -90,9 +94,7 @@ async def upload_document(
             ) from exc
 
         if not isinstance(uploaded_result, DocumentIngestionResult):
-            raise RuntimeError(
-                "The ingestion service returned an unexpected result."
-            )
+            raise TypeError("The ingestion service returned an unexpected result.")
 
         uploaded_document = uploaded_result.document
 

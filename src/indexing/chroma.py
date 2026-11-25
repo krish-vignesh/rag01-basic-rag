@@ -1,13 +1,8 @@
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
 
-from src.models.chunk import Chunk
-
-
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
 
 def build_chroma_index(chunks):
@@ -21,8 +16,8 @@ def build_chroma_index(chunks):
                 "company_id": chunk.company_id,
                 "chunk_index": chunk.chunk_index,
                 "page": chunk.page,
-                "source": chunk.source
-            }
+                "source": chunk.source,
+            },
         )
         for chunk in chunks
     ]
@@ -31,7 +26,7 @@ def build_chroma_index(chunks):
         documents=documents,
         embedding=embeddings,
         ids=[chunk.chunk_id for chunk in chunks],
-        persist_directory="vector_store"
+        persist_directory="vector_store",
     )
 
     return vector_store

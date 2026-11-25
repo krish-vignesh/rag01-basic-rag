@@ -1,11 +1,10 @@
-from pathlib import Path
 import sys
 import time
+from pathlib import Path
 
 import pypdf
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
-
 
 # ---------------------------------------------------------
 # 1. Make project root importable
@@ -23,10 +22,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.config.settings import settings
 
-
 # ---------------------------------------------------------
 # 3. Buffered Azure Blob Reader
 # ---------------------------------------------------------
+
 
 class BufferedAzureBlobReader:
     def __init__(
@@ -72,10 +71,7 @@ class BufferedAzureBlobReader:
         self.buffer_start = start
         self.buffer_end = start + len(self.buffer)
 
-        print(
-            f"Azure request: "
-            f"bytes {self.buffer_start} -> {self.buffer_end}"
-        )
+        print(f"Azure request: bytes {self.buffer_start} -> {self.buffer_end}")
 
     def read(self, size: int = -1) -> bytes:
         """
@@ -89,10 +85,7 @@ class BufferedAzureBlobReader:
         # -------------------------------------------------
 
         if size == -1:
-
-            stream = self.blob_client.download_blob(
-                offset=self.position
-            )
+            stream = self.blob_client.download_blob(offset=self.position)
 
             data = stream.readall()
 
@@ -118,14 +111,9 @@ class BufferedAzureBlobReader:
         # -------------------------------------------------
 
         while remaining > 0:
-
             # If current position is outside our buffer,
             # fetch a new range from Azure.
-            if not (
-                self.buffer_start
-                <= self.position
-                < self.buffer_end
-            ):
+            if not (self.buffer_start <= self.position < self.buffer_end):
                 self._fill_buffer()
 
             # Azure returned no data.
@@ -134,15 +122,11 @@ class BufferedAzureBlobReader:
                 break
 
             # Position relative to the current buffer.
-            buffer_offset = (
-                self.position - self.buffer_start
-            )
+            buffer_offset = self.position - self.buffer_start
 
             # Number of bytes available from the current
             # position until the end of this buffer.
-            available = (
-                self.buffer_end - self.position
-            )
+            available = self.buffer_end - self.position
 
             # Don't read more than the caller requested.
             bytes_to_read = min(
@@ -151,12 +135,7 @@ class BufferedAzureBlobReader:
             )
 
             # Copy bytes from the in-memory buffer.
-            result.extend(
-                self.buffer[
-                    buffer_offset:
-                    buffer_offset + bytes_to_read
-                ]
-            )
+            result.extend(self.buffer[buffer_offset : buffer_offset + bytes_to_read])
 
             # Advance logical position.
             self.position += bytes_to_read
@@ -181,30 +160,21 @@ class BufferedAzureBlobReader:
         """
 
         if whence == 0:
-
             new_position = offset
 
         elif whence == 1:
-
             new_position = self.position + offset
 
         elif whence == 2:
-
             properties = self.blob_client.get_blob_properties()
 
             new_position = properties.size + offset
 
         else:
-
-            raise ValueError(
-                "whence must be 0, 1, or 2"
-            )
+            raise ValueError("whence must be 0, 1, or 2")
 
         if new_position < 0:
-            raise ValueError(
-                "Cannot seek before the beginning "
-                "of the blob."
-            )
+            raise ValueError("Cannot seek before the beginning of the blob.")
 
         self.position = new_position
 
@@ -254,9 +224,7 @@ container_client = blob_service_client.get_container_client(
 # 7. Get the test PDF blob
 # ---------------------------------------------------------
 
-blob_client = container_client.get_blob_client(
-    settings.azure_test_blob_name
-)
+blob_client = container_client.get_blob_client(settings.azure_test_blob_name)
 
 
 # ---------------------------------------------------------
@@ -269,10 +237,7 @@ print("\n--- Blob Information ---")
 
 print(f"Blob: {settings.azure_test_blob_name}")
 print(f"Blob size: {properties.size:,} bytes")
-print(
-    f"Blob size: "
-    f"{properties.size / (1024 * 1024):.4f} MB"
-)
+print(f"Blob size: {properties.size / (1024 * 1024):.4f} MB")
 
 
 # ---------------------------------------------------------
@@ -301,10 +266,7 @@ page_count = len(pdf_reader.pages)
 parsing_time = time.perf_counter() - start_time
 
 print(f"Pages: {page_count}")
-print(
-    f"Parser initialization time: "
-    f"{parsing_time:.4f} seconds"
-)
+print(f"Parser initialization time: {parsing_time:.4f} seconds")
 
 
 # ---------------------------------------------------------
@@ -315,21 +277,13 @@ print("\n--- First Page Extraction Test ---")
 
 start_time = time.perf_counter()
 
-first_page_text = (
-    pdf_reader.pages[0].extract_text()
-)
+first_page_text = pdf_reader.pages[0].extract_text()
 
 extraction_time = time.perf_counter() - start_time
 
-print(
-    f"First page characters: "
-    f"{len(first_page_text or '')}"
-)
+print(f"First page characters: {len(first_page_text or '')}")
 
-print(
-    f"First page extraction time: "
-    f"{extraction_time:.4f} seconds"
-)
+print(f"First page extraction time: {extraction_time:.4f} seconds")
 
 
 # ---------------------------------------------------------
@@ -337,12 +291,9 @@ print(
 # ---------------------------------------------------------
 
 if first_page_text:
-
     print("\n--- First Page Preview ---")
 
-    print(
-        first_page_text[:500]
-    )
+    print(first_page_text[:500])
 
 
 # ---------------------------------------------------------
@@ -351,12 +302,6 @@ if first_page_text:
 
 print("\n--- PDF Test Completed ---")
 
-print(
-    f"Total measured parser initialization time: "
-    f"{parsing_time:.4f} seconds"
-)
+print(f"Total measured parser initialization time: {parsing_time:.4f} seconds")
 
-print(
-    f"Total measured first-page extraction time: "
-    f"{extraction_time:.4f} seconds"
-)
+print(f"Total measured first-page extraction time: {extraction_time:.4f} seconds")

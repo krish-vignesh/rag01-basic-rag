@@ -1,8 +1,7 @@
 from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
-from langchain_core.documents.base import Blob
 from langchain_community.document_loaders.parsers import PyPDFParser
-
+from langchain_core.documents.base import Blob
 
 STORAGE_ACCOUNT_NAME = "hybridragstorage2026"
 CONTAINER_NAME = "documents"
@@ -11,9 +10,7 @@ CONTAINER_NAME = "documents"
 BLOB_NAME = "test/NovaTech_HR_Policy_Handbook.pdf"
 
 
-account_url = (
-    f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
-)
+account_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
 
 credential = DefaultAzureCredential()
 
@@ -22,13 +19,9 @@ blob_service_client = BlobServiceClient(
     credential=credential,
 )
 
-container_client = blob_service_client.get_container_client(
-    CONTAINER_NAME
-)
+container_client = blob_service_client.get_container_client(CONTAINER_NAME)
 
-blob_client = container_client.get_blob_client(
-    BLOB_NAME
-)
+blob_client = container_client.get_blob_client(BLOB_NAME)
 
 
 print("Connecting to Azure Blob...")
@@ -63,9 +56,7 @@ print("Testing PyPDFParser...")
 
 parser = PyPDFParser()
 
-documents = list(
-    parser.lazy_parse(langchain_blob)
-)
+documents = list(parser.lazy_parse(langchain_blob))
 
 print()
 print(f"Documents parsed: {len(documents)}")

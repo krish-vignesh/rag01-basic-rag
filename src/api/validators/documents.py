@@ -1,8 +1,6 @@
-
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
-
 
 ALLOWED_EXTENSIONS = {
     ".pdf",

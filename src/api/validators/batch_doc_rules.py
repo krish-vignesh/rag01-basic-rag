@@ -1,11 +1,9 @@
-
 from fastapi import HTTPException, UploadFile, status
 
 from src.api.validators.documents import (
     MAX_FILE_SIZE_BYTES,
     get_upload_file_size,
 )
-
 
 MAX_BATCH_FILES = 5
 MAX_BATCH_SIZE_BYTES = 64 * 1024 * 1024

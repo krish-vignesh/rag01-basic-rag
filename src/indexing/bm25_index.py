@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 
-
 load_dotenv()
 
 
@@ -14,7 +13,7 @@ def build_bm25_index(chunks):
     client = OpenSearch(
         hosts=[{"host": "opensearch", "port": 9200}],
         http_auth=("admin", password),
-        use_ssl=True, #use_ssl=True, is required for secure connections, but can be set to False for local development or testing purposes.
+        use_ssl=True,  # use_ssl=True, is required for secure connections, but can be set to False for local development or testing purposes.
         verify_certs=False,
     )
 
@@ -47,5 +46,3 @@ def build_bm25_index(chunks):
     print("List emptied:", failed)
 
     return client
-
-

@@ -1,12 +1,9 @@
-
 from uuid import uuid4
 
 from src.database import SessionFactory
-from src.models.orm import Company, File, Document
 from src.repositories.company_repository import CompanyRepository
-from src.repositories.file_repository import FileRepository
 from src.repositories.document_repository import DocumentRepository
-
+from src.repositories.file_repository import FileRepository
 
 company_repository = CompanyRepository()
 file_repository = FileRepository()
@@ -31,7 +28,7 @@ def run_test():
             )
             company_id = company.company_id
 
-            file_record = file_repository.create(session, file_id)
+            file_repository.create(session, file_id)
             session.flush()
 
             # 2. Create the document using an explicit UUID.

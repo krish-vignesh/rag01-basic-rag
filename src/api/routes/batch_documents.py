@@ -1,13 +1,19 @@
-
-
 import logging
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
-from starlette.concurrency import run_in_threadpool
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 
+from src.api.dependencies import get_ingestion_service
 from src.api.validators.batch_doc_rules import validate_batch_upload
 from src.api.validators.documents import validate_file_extension
 from src.models.document import Document
@@ -24,11 +30,9 @@ from src.services.ingestion import (
     DuplicateDocumentError,
 )
 
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-ingestion_service = DocumentIngestionService()
 
 
 @router.post(
@@ -39,6 +43,10 @@ ingestion_service = DocumentIngestionService()
 async def upload_documents_batch(
     files: Annotated[list[UploadFile], File(...)],
     company_id: Annotated[UUID, Form()],
+    ingestion_service: Annotated[
+        DocumentIngestionService,
+        Depends(get_ingestion_service),
+    ],
 ) -> BatchDocumentUploadResponse:
     """Upload multiple documents for an existing company."""
 
@@ -79,10 +87,7 @@ async def upload_documents_batch(
             )
 
             try:
-                # Run synchronous database, hashing, and Azure work
-                # outside the asynchronous event-loop thread.
-                uploaded_result = await run_in_threadpool(
-                    ingestion_service.ingest_document,
+                uploaded_result = await ingestion_service.ingest_document(
                     document=document,
                     stream=file.file,
                     content_type=file.content_type,
@@ -93,7 +98,7 @@ async def upload_documents_batch(
                     uploaded_result,
                     DocumentIngestionResult,
                 ):
-                    raise RuntimeError(
+                    raise TypeError(
                         "The ingestion service returned an unexpected result."
                     )
 
@@ -129,8 +134,7 @@ async def upload_documents_batch(
                         outcome="failure",
                         error_code="duplicate_document",
                         message=(
-                            "This document has already been uploaded "
-                            "for this company."
+                            "This document has already been uploaded for this company."
                         ),
                     )
                 )
@@ -185,8 +189,7 @@ async def upload_documents_batch(
             except Exception:
                 # Keep technical details in server logs only.
                 logger.exception(
-                    "Unexpected batch ingestion error. "
-                    "company_id=%s filename=%s",
+                    "Unexpected batch ingestion error. company_id=%s filename=%s",
                     company_id,
                     filename,
                 )
@@ -226,15 +229,9 @@ async def upload_documents_batch(
                 )
 
         # Phase 4: Calculate summary counts from individual outcomes.
-        successful_uploads = sum(
-            result.outcome == "success" for result in results
-        )
-        failed_uploads = sum(
-            result.outcome == "failure" for result in results
-        )
-        not_processed = sum(
-            result.outcome == "not_processed" for result in results
-        )
+        successful_uploads = sum(result.outcome == "success" for result in results)
+        failed_uploads = sum(result.outcome == "failure" for result in results)
+        not_processed = sum(result.outcome == "not_processed" for result in results)
 
         response = BatchDocumentUploadResponse(
             total_files=len(prepared_files),

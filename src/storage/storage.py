@@ -1,158 +1,26 @@
-
-from io import BufferedIOBase
+import asyncio
+import logging
+import tempfile
 from typing import BinaryIO
 
+from azure.core.credentials_async import AsyncTokenCredential
 from azure.core.exceptions import ResourceExistsError
-from azure.core.credentials import TokenCredential
-from azure.identity import (
+from azure.identity.aio import (
     AzureCliCredential,
     DefaultAzureCredential,
     ManagedIdentityCredential,
 )
-from azure.storage.blob import (
-    BlobClient,
+from azure.storage.blob import ContentSettings
+from azure.storage.blob.aio import (
     BlobServiceClient,
-    ContentSettings,
+    ContainerClient,
 )
 
 from src.config.settings import settings
 
+logger = logging.getLogger(__name__)
 
-class BufferedAzureBlobReader(BufferedIOBase):
-    def __init__(
-        self,
-        blob_client: BlobClient,
-        blob_size: int,
-        buffer_size: int = 8 * 1024 * 1024,
-    ):
-        self.blob_client = blob_client
-        self.blob_size = blob_size
-        self.buffer_size = buffer_size
-
-        self.position = 0
-        self.buffer_start = 0
-        self.buffer_end = 0
-        self.buffer = b""
-
-        self._reader_closed = False
-
-    def _fill_buffer(self) -> None:
-        if self.position >= self.blob_size:
-            self.buffer = b""
-            self.buffer_start = self.position
-            self.buffer_end = self.position
-            return
-
-        start = self.position
-        length = min(
-            self.buffer_size,
-            self.blob_size - start,
-        )
-
-        download_stream = self.blob_client.download_blob(
-            offset=start,
-            length=length,
-        )
-
-        self.buffer = download_stream.readall()
-        self.buffer_start = start
-        self.buffer_end = start + len(self.buffer)
-
-    def read(self, size: int = -1) -> bytes:
-        if self.closed:
-            raise ValueError("I/O operation on closed reader.")
-
-        if size == 0:
-            return b""
-
-        if size < 0:
-            size = self.blob_size - self.position
-
-        size = min(
-            size,
-            self.blob_size - self.position,
-        )
-
-        result = bytearray()
-
-        while len(result) < size:
-            if not (
-                self.buffer_start
-                <= self.position
-                < self.buffer_end
-            ):
-                self._fill_buffer()
-
-            if self.buffer_end <= self.position:
-                break
-
-            buffer_offset = self.position - self.buffer_start
-            remaining = size - len(result)
-            available = self.buffer_end - self.position
-
-            bytes_to_take = min(
-                remaining,
-                available,
-            )
-
-            result.extend(
-                self.buffer[
-                    buffer_offset:buffer_offset + bytes_to_take
-                ]
-            )
-
-            self.position += bytes_to_take
-
-        return bytes(result)
-
-    def seek(
-        self,
-        offset: int,
-        whence: int = 0,
-    ) -> int:
-        if self.closed:
-            raise ValueError("I/O operation on closed reader.")
-
-        if whence == 0:
-            new_position = offset
-        elif whence == 1:
-            new_position = self.position + offset
-        elif whence == 2:
-            new_position = self.blob_size + offset
-        else:
-            raise ValueError(
-                f"Unsupported whence value: {whence}"
-            )
-
-        if new_position < 0:
-            raise ValueError(
-                "Negative seek position is not allowed."
-            )
-
-        self.position = min(
-            new_position,
-            self.blob_size,
-        )
-
-        return self.position
-
-    def tell(self) -> int:
-        if self.closed:
-            raise ValueError("I/O operation on closed reader.")
-
-        return self.position
-
-    def readable(self) -> bool:
-        return not self.closed
-
-    def seekable(self) -> bool:
-        return not self.closed
-
-    def close(self) -> None:
-        if not self._reader_closed:
-            self._reader_closed = True
-            self.buffer = b""
-            super().close()
+_MAX_CLEANUP_ATTEMPTS = 2
 
 
 class DocumentStorage:
@@ -161,21 +29,24 @@ class DocumentStorage:
         storage_account_url: str,
         container_name: str,
     ):
-        credential = self._create_credential()
+        self.credential = self._create_credential()
 
         self.blob_service_client = BlobServiceClient(
             account_url=storage_account_url,
-            credential=credential,
+            credential=self.credential,
         )
 
-        self.container_client = (
+        self.container_client: ContainerClient = (
             self.blob_service_client.get_container_client(
                 container_name
             )
         )
 
+        self._service_client_closed = False
+        self._credential_closed = False
+
     @staticmethod
-    def _create_credential() -> TokenCredential:
+    def _create_credential() -> AsyncTokenCredential:
         credential_mode = settings.azure_credential_mode
 
         if credential_mode == "azure_cli":
@@ -214,7 +85,7 @@ class DocumentStorage:
         """Keep document objects organized by company and document."""
         return f"{company_id}/{document_id}/{filename}"
 
-    def save_document(
+    async def save_document(
         self,
         stream: BinaryIO,
         company_id: str,
@@ -241,7 +112,7 @@ class DocumentStorage:
         try:
             # Conditional creation: do not overwrite an existing blob.
             # This avoids a separate existence-check network request.
-            blob_client.upload_blob(
+            await blob_client.upload_blob(
                 stream,
                 overwrite=False,
                 content_settings=content_settings,
@@ -251,12 +122,12 @@ class DocumentStorage:
                 f"Document '{blob_name}' already exists."
             ) from exc
 
-    def download_document(
+    async def download_document(
         self,
         company_id: str,
         document_id: str,
         filename: str,
-    ) -> BufferedAzureBlobReader:
+    ) -> BinaryIO:
         blob_name = self._build_blob_name(
             company_id=company_id,
             document_id=document_id,
@@ -267,15 +138,21 @@ class DocumentStorage:
             blob_name
         )
 
-        blob_properties = blob_client.get_blob_properties()
-
-        return BufferedAzureBlobReader(
-            blob_client=blob_client,
-            blob_size=blob_properties.size,
-            buffer_size=8 * 1024 * 1024,
+        stream = tempfile.SpooledTemporaryFile(
+            max_size=8 * 1024 * 1024,
+            mode="w+b",
         )
 
-    def exists(
+        try:
+            download_stream = await blob_client.download_blob()
+            await download_stream.readinto(stream)
+            stream.seek(0)
+            return stream
+        except Exception:
+            stream.close()
+            raise
+
+    async def exists(
         self,
         company_id: str,
         document_id: str,
@@ -291,9 +168,9 @@ class DocumentStorage:
             blob_name
         )
 
-        return blob_client.exists()
+        return await blob_client.exists()
 
-    def delete_document(
+    async def delete_document(
         self,
         company_id: str,
         document_id: str,
@@ -310,4 +187,88 @@ class DocumentStorage:
             blob_name
         )
 
-        blob_client.delete_blob()
+        await blob_client.delete_blob()
+
+    async def close(self) -> None:
+        cleanup_errors: list[Exception] = []
+        cleanup_cancellations: list[asyncio.CancelledError] = []
+
+        cleanup_targets = (
+            (
+                "Azure Blob service client",
+                self.blob_service_client.close,
+                "_service_client_closed",
+            ),
+            ("Azure credential", self.credential.close, "_credential_closed"),
+        )
+
+        logger.debug("Beginning document storage cleanup.")
+        for resource_name, close_operation, closed_flag in cleanup_targets:
+            if getattr(self, closed_flag):
+                continue
+
+            for attempt in range(1, _MAX_CLEANUP_ATTEMPTS + 1):
+                try:
+                    await close_operation()
+                except asyncio.CancelledError as exc:
+                    cleanup_cancellations.append(exc)
+                    logger.warning(
+                        "%s cleanup was cancelled; the resource remains "
+                        "unclosed.",
+                        resource_name,
+                        exc_info=True,
+                    )
+                    break
+                except Exception as exc:
+                    if attempt < _MAX_CLEANUP_ATTEMPTS:
+                        logger.warning(
+                            "%s cleanup failed; retrying "
+                            "(attempt %d/%d).",
+                            resource_name,
+                            attempt,
+                            _MAX_CLEANUP_ATTEMPTS,
+                            exc_info=True,
+                        )
+                    else:
+                        cleanup_errors.append(exc)
+                        logger.exception(
+                            "%s cleanup failed after %d attempts; the "
+                            "resource remains unclosed.",
+                            resource_name,
+                            _MAX_CLEANUP_ATTEMPTS,
+                        )
+                else:
+                    setattr(self, closed_flag, True)
+                    logger.debug("%s cleanup succeeded.", resource_name)
+                    break
+
+        if cleanup_cancellations:
+            for cleanup_error in cleanup_errors:
+                logger.error(
+                    "Document storage cleanup failed while "
+                    "preserving cancellation.",
+                    exc_info=(
+                        type(cleanup_error),
+                        cleanup_error,
+                        cleanup_error.__traceback__,
+                    ),
+                )
+            raise cleanup_cancellations[0]
+
+        if cleanup_errors:
+            raise ExceptionGroup(
+                "Document storage cleanup failed.",
+                cleanup_errors,
+            )
+
+    async def __aenter__(self) -> "DocumentStorage":
+        return self
+
+    async def __aexit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc_value: BaseException | None,
+        _traceback: object | None,
+    ) -> None:
+        del _exc_type, _exc_value, _traceback
+        await self.close()

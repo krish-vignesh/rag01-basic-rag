@@ -1,4 +1,3 @@
-
 from sqlalchemy import text
 
 from src.database import SessionFactory, engine
@@ -44,8 +43,6 @@ try:
 finally:
     # Clean up the experiment table.
     with engine.begin() as connection:
-        connection.execute(
-            text("DROP TABLE IF EXISTS transaction_test")
-        )
+        connection.execute(text("DROP TABLE IF EXISTS transaction_test"))
 
     print("Experiment table removed.")

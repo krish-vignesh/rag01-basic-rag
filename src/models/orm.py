@@ -1,14 +1,15 @@
 import uuid
 from datetime import datetime
+
 from sqlalchemy import (
-    DateTime,
-    String,
-    ForeignKey,
     CheckConstraint,
+    DateTime,
+    ForeignKey,
     Integer,
+    String,
     Text,
     UniqueConstraint,
-    text
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import (
@@ -25,11 +26,8 @@ class Base(DeclarativeBase):
 
 class Company(Base):
     __tablename__ = "companies"
-    __table_args__ = {"schema": "public"}
 
-    documents: Mapped[list["Document"]] = relationship(
-        back_populates="company"
-    )
+    documents: Mapped[list["Document"]] = relationship(back_populates="company")
 
     company_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -48,13 +46,11 @@ class Company(Base):
         server_default=text("CURRENT_TIMESTAMP"),
     )
 
+
 class File(Base):
     __tablename__ = "files"
-    __table_args__ = {"schema": "public"}
 
-    documents: Mapped[list["Document"]] = relationship(
-        back_populates="file"
-    )
+    documents: Mapped[list["Document"]] = relationship(back_populates="file")
 
     file_id: Mapped[str] = mapped_column(
         String(64),
@@ -84,7 +80,6 @@ class Document(Base):
             "status IN ('pending', 'uploaded', 'processing', 'ready', 'failed')",
             name="documents_status_check",
         ),
-        {"schema": "public"},
     )
 
     document_id: Mapped[uuid.UUID] = mapped_column(
@@ -93,23 +88,19 @@ class Document(Base):
         server_default=text("gen_random_uuid()"),
     )
 
-    company: Mapped["Company"] = relationship(
-        back_populates="documents"
-    )
+    company: Mapped["Company"] = relationship(back_populates="documents")
 
-    file: Mapped["File"] = relationship(
-        back_populates="documents"
-    )
+    file: Mapped["File"] = relationship(back_populates="documents")
 
     company_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("public.companies.company_id"),
+        ForeignKey("companies.company_id"),
         nullable=False,
     )
 
     file_id: Mapped[str] = mapped_column(
         String(64),
-        ForeignKey("public.files.file_id"),
+        ForeignKey("files.file_id"),
         nullable=False,
     )
 
@@ -150,5 +141,3 @@ class Document(Base):
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
-
-    

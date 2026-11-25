@@ -1,4 +1,3 @@
-
 from io import BytesIO
 from uuid import uuid4
 
@@ -6,7 +5,8 @@ from sqlalchemy import delete, select
 
 from src.database import SessionFactory
 from src.models.document import Document as DocumentModel
-from src.models.orm import Company, Document as DocumentORM, File
+from src.models.orm import Company, File
+from src.models.orm import Document as DocumentORM
 from src.repositories.company_repository import CompanyRepository
 from src.services.file_identity import calculate_stream_hash
 from src.services.ingestion import DocumentIngestionService
@@ -49,10 +49,7 @@ def test_successful_document_ingestion():
     company_id = None
     document_id = uuid4()
 
-    content = (
-        b"RAG01 integration test document. "
-        + str(uuid4()).encode()
-    )
+    content = b"RAG01 integration test document. " + str(uuid4()).encode()
     stream = BytesIO(content)
     file_id = calculate_stream_hash(stream)
 
@@ -100,17 +97,13 @@ def test_successful_document_ingestion():
             ).one_or_none()
 
             persisted_document = session.scalars(
-                select(DocumentORM).where(
-                    DocumentORM.document_id == document_id
-                )
+                select(DocumentORM).where(DocumentORM.document_id == document_id)
             ).one_or_none()
 
             assert file_record is not None
             assert persisted_document is not None
             assert persisted_document.status == "uploaded"
-            assert persisted_document.blob_name == (
-                storage.uploaded_blob_name
-            )
+            assert persisted_document.blob_name == (storage.uploaded_blob_name)
 
         # 6. Verify that storage received the original bytes.
         assert storage.uploaded_bytes == content
@@ -131,22 +124,13 @@ def test_successful_document_ingestion():
         if company_id is not None:
             with SessionFactory.begin() as session:
                 session.execute(
-                    delete(DocumentORM).where(
-                        DocumentORM.document_id == document_id
-                    )
+                    delete(DocumentORM).where(DocumentORM.document_id == document_id)
                 )
 
-                session.execute(
-                    delete(File).where(File.file_id == file_id)
-                )
+                session.execute(delete(File).where(File.file_id == file_id))
 
-                session.execute(
-                    delete(Company).where(
-                        Company.company_id == company_id
-                    )
-                )
+                session.execute(delete(Company).where(Company.company_id == company_id))
 
 
 if __name__ == "__main__":
     test_successful_document_ingestion()
-

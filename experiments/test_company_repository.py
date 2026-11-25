@@ -1,10 +1,10 @@
+from uuid import UUID
 
 from sqlalchemy import select
-from uuid import UUID
+
 from src.database import SessionFactory
 from src.models.orm import Company
 from src.repositories.company_repository import CompanyRepository
-
 
 repository = CompanyRepository()
 test_name = "RAG01 Repository Test Company"

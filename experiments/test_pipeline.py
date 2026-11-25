@@ -6,9 +6,8 @@ Status:
 Completed and kept for future experiments.
 """
 
-
-from retrieve import retrieve_docs, extract_chunks
-from reranker import rerank 
+from reranker import rerank
+from retrieve import extract_chunks, retrieve_docs
 
 question = "how many sick leave days are provided in a year"
 

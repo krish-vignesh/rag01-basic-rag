@@ -1,4 +1,3 @@
-
 from contextlib import contextmanager
 from io import BytesIO
 from uuid import uuid4
@@ -8,7 +7,8 @@ from sqlalchemy import delete, select
 
 from src.database import SessionFactory
 from src.models.document import Document as DocumentModel
-from src.models.orm import Company, Document as DocumentORM, File
+from src.models.orm import Company, File
+from src.models.orm import Document as DocumentORM
 from src.repositories.company_repository import CompanyRepository
 from src.services.file_identity import calculate_stream_hash
 from src.services.ingestion import (
@@ -116,18 +116,10 @@ def create_failed_document(content: bytes):
         if company_id is not None:
             with SessionFactory.begin() as session:
                 session.execute(
-                    delete(DocumentORM).where(
-                        DocumentORM.document_id == document_id
-                    )
+                    delete(DocumentORM).where(DocumentORM.document_id == document_id)
                 )
-                session.execute(
-                    delete(File).where(File.file_id == file_id)
-                )
-                session.execute(
-                    delete(Company).where(
-                        Company.company_id == company_id
-                    )
-                )
+                session.execute(delete(File).where(File.file_id == file_id))
+                session.execute(delete(Company).where(Company.company_id == company_id))
         raise
 
 
@@ -136,22 +128,14 @@ def cleanup_records(company_id, document_id, file_id):
 
     with SessionFactory.begin() as session:
         session.execute(
-            delete(DocumentORM).where(
-                DocumentORM.document_id == document_id
-            )
+            delete(DocumentORM).where(DocumentORM.document_id == document_id)
         )
-        session.execute(
-            delete(File).where(File.file_id == file_id)
-        )
-        session.execute(
-            delete(Company).where(Company.company_id == company_id)
-        )
+        session.execute(delete(File).where(File.file_id == file_id))
+        session.execute(delete(Company).where(Company.company_id == company_id))
 
 
 def run_recovery(content: bytes, existing_blob):
-    company_id, document_id, file_id, filename = create_failed_document(
-        content
-    )
+    company_id, document_id, file_id, filename = create_failed_document(content)
 
     try:
         storage = FakeDocumentStorage(existing_blob=existing_blob)
@@ -180,9 +164,7 @@ def run_recovery(content: bytes, existing_blob):
 
         with SessionFactory() as session:
             persisted_document = session.scalars(
-                select(DocumentORM).where(
-                    DocumentORM.document_id == document_id
-                )
+                select(DocumentORM).where(DocumentORM.document_id == document_id)
             ).one()
 
             assert persisted_document.status == "uploaded"
@@ -219,9 +201,7 @@ def test_recovery_rejects_existing_blob_with_wrong_hash():
     content = b"Original document content."
     incorrect_blob = b"Different content in storage."
 
-    company_id, document_id, file_id, filename = create_failed_document(
-        content
-    )
+    company_id, document_id, file_id, filename = create_failed_document(content)
 
     try:
         storage = FakeDocumentStorage(existing_blob=incorrect_blob)
@@ -250,9 +230,7 @@ def test_recovery_rejects_existing_blob_with_wrong_hash():
 
         with SessionFactory() as session:
             persisted_document = session.scalars(
-                select(DocumentORM).where(
-                    DocumentORM.document_id == document_id
-                )
+                select(DocumentORM).where(DocumentORM.document_id == document_id)
             ).one()
 
             assert persisted_document.status == "failed"
