@@ -7,8 +7,8 @@ from sqlalchemy import delete, select
 
 from src.database import SessionFactory
 from src.models.document import Document as DocumentModel
-from src.models.orm import Company, File
-from src.models.orm import Document as DocumentORM
+from models.orm_legacy import Company, File
+from models.orm_legacy import Document as DocumentORM
 from src.repositories.company_repository import CompanyRepository
 from src.services.file_identity import calculate_stream_hash
 from src.services.ingestion import (

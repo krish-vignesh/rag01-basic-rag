@@ -3,7 +3,7 @@ from sqlalchemy import select
 # Select is used to construct SQL SELECT statements in a more Pythonic way, allowing for easier querying of the database using SQLAlchemy's ORM capabilities.
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.orm import File
+from models.orm_legacy import File
 
 
 class FileRepository:

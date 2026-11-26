@@ -2,16 +2,20 @@
 
 import asyncio
 import sys
+from collections.abc import AsyncIterator
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy import URL, text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.config.migration_settings import MigrationSettings
 from src.models.document import Document
 from src.services.ingestion import DocumentIngestionService
 
@@ -158,6 +162,74 @@ def fake_storage() -> FakeAsyncStorage:
 @pytest.fixture
 def session_factory() -> FakeSessionFactory:
     return FakeSessionFactory()
+
+
+@pytest.fixture
+async def orm_test_session() -> AsyncIterator[AsyncSession]:
+    settings = MigrationSettings(migration_target="test")
+    if settings.postgres_test_db != "rag01_test":
+        raise RuntimeError("ORM tests require the rag01_test database.")
+    if not all(
+        value and value.strip()
+        for value in (
+            settings.postgres_test_user,
+            settings.postgres_test_password,
+            settings.postgres_host,
+        )
+    ):
+        raise RuntimeError("ORM test database configuration is incomplete.")
+
+    database_url = URL.create(
+        drivername="postgresql+psycopg",
+        username=settings.postgres_test_user,
+        password=settings.postgres_test_password,
+        host=settings.postgres_host,
+        port=settings.postgres_port,
+        database=settings.postgres_test_db,
+    )
+    test_engine = create_async_engine(database_url, pool_pre_ping=True)
+
+    try:
+        async with test_engine.connect() as connection:
+            outer_transaction = await connection.begin()
+            try:
+                database_name, database_user = (
+                    await connection.execute(
+                        text("SELECT current_database(), current_user")
+                    )
+                ).one()
+                if (
+                    database_name != "rag01_test"
+                    or database_user != settings.postgres_test_user
+                ):
+                    raise RuntimeError(
+                        "ORM tests connected to an unexpected database or user."
+                    )
+
+                revision = (
+                    await connection.execute(
+                        text(
+                            "SELECT version_num "
+                            "FROM public.alembic_version"
+                        )
+                    )
+                ).scalar_one_or_none()
+                if revision != "7e5a6e5c262c":
+                    raise RuntimeError(
+                        "The test database is not at the required Alembic revision."
+                    )
+
+                async with AsyncSession(
+                    bind=connection,
+                    expire_on_commit=False,
+                    join_transaction_mode="create_savepoint",
+                ) as session:
+                    yield session
+            finally:
+                if outer_transaction.is_active:
+                    await outer_transaction.rollback()
+    finally:
+        await test_engine.dispose()
 
 
 @pytest.fixture

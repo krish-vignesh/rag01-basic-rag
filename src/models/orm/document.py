@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     CheckConstraint,
@@ -12,60 +13,18 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import (
-    DeclarativeBase,
-    Mapped,
-    mapped_column,
-    relationship,
-)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from src.models.base import Base
 
-class Base(DeclarativeBase):
-    pass
-
-
-class Company(Base):
-    __tablename__ = "companies"
-
-    documents: Mapped[list["Document"]] = relationship(back_populates="company")
-
-    company_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        server_default=text("gen_random_uuid()"),
-    )
-
-    company_name: Mapped[str] = mapped_column(
-        String(200),
-        nullable=False,
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=text("CURRENT_TIMESTAMP"),
-    )
-
-
-class File(Base):
-    __tablename__ = "files"
-
-    documents: Mapped[list["Document"]] = relationship(back_populates="file")
-
-    file_id: Mapped[str] = mapped_column(
-        String(64),
-        primary_key=True,
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=text("CURRENT_TIMESTAMP"),
-    )
+if TYPE_CHECKING:
+    from src.models.orm.company import Company
+    from src.models.orm.file import File
 
 
 class Document(Base):
     __tablename__ = "documents"
+
     __table_args__ = (
         UniqueConstraint(
             "company_id",

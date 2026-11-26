@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.orm import Document
+from models.orm_legacy import Document
 
 
 class DocumentRepository:

@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from src.database import SessionFactory
-from src.models.orm import Company
+from models.orm_legacy import Company
 from src.repositories.company_repository import CompanyRepository
 
 repository = CompanyRepository()

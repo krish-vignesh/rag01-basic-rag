@@ -1,7 +1,7 @@
 from sqlalchemy import select
 
 from src.database import SessionFactory
-from src.models.orm import File
+from models.orm_legacy import File
 from src.repositories.file_repository import FileRepository
 
 repository = FileRepository()
