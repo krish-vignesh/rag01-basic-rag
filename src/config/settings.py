@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     postgres_password: str
     postgres_host: str
     postgres_port: int
+    keycloak_issuer: str
+    keycloak_audience: str
+    keycloak_jwks_url: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
